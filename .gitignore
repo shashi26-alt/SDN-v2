@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.pyc
+*.pyo
+*.pyd
+*.tmp
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+*.db
+*.log
+test_certs*
+*.tmp
+
+# Keep these databases (they're needed)
+!identity.db
+!pending_devices.db
+
+# Keep logs directory structure
+logs/
+!logs/.gitkeep
+
+# Certificates (keep directory, ignore contents)
+certs/*
+!certs/.gitkeep
+
+# Models (large files)
+models/*.h5
+models/*.keras
+models/*.pkl
+
+# Honeypot data
+honeypot_data/*/
+!honeypot_data/.gitkeep
+
+# Build artifacts
+build/
+dist/
+*.egg-info/

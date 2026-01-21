@@ -1,0 +1,75 @@
+                <div class="card">
+                    <h3>Real-time Attack Detection</h3>
+                    <div id="ml-detections" class="scroll-container">
+                        <div v-for="detection in detections" :key="detection.timestamp"
+                             :class="['alert', {'success': detection.type === 'Normal', 'danger': detection.type !== 'Normal'}]">
+                            <div class="alert-header">
+                                <strong>{{ detection.type }}</strong>
+                                <span class="alert-timestamp">{{ detection.timestamp }}</span>
+                            </div>
+                            <div class="alert-details">
+                                <span class="confidence">Confidence: {{ detection.confidence }}%</span>
+                                <div class="attack-info" v-if="detection.type !== 'Normal'">
+                                    <div class="device-info">
+                                        <span class="source-ip">Source IP: {{ detection.sourceIp }}</span>
+                                        <span class="target-ip">Target IP: {{ detection.targetIp }}</span>
+                                    </div>
+                                    <div class="attack-stats">
+                                        <span class="attack-type">Attack Type: {{ detection.attackType }}</span>
+                                        <span class="packets">Packets/sec: {{ detection.packetsPerSec }}</span>
+                                    </div>
+                                    <div class="mitigation-status">
+                                        <span :class="['block-status', {'blocked': detection.isBlocked}]">
+                                            Status: {{ detection.isBlocked ? 'IP Blocked' : 'Monitoring' }}
+                                        </span>
+                                        <span class="duration" v-if="detection.isBlocked">
+                                            Block Duration: {{ detection.blockDuration }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+<style>
+    .attack-info {
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        background: rgba(0, 0, 0, 0.1);
+        border-radius: 4px;
+    }
+    
+    .device-info, .attack-stats, .mitigation-status {
+        display: flex;
+        justify-content: space-between;
+        margin: 0.3rem 0;
+        gap: 1rem;
+    }
+    
+    .source-ip, .target-ip, .attack-type, .packets {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+    }
+    
+    .block-status {
+        padding: 0.2rem 0.5rem;
+        border-radius: 3px;
+        font-size: 0.85rem;
+        background: var(--warning-color);
+        color: var(--text-primary);
+    }
+    
+    .block-status.blocked {
+        background: var(--danger-color);
+    }
+    
+    .duration {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+
+    .alert.danger {
+        border-left: 4px solid var(--danger-color);
+    }
+</style>

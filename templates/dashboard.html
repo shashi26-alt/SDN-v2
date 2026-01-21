@@ -1,0 +1,3141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureIoT Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-bg: #0f172a;
+            --secondary-bg: #1e293b;
+            --accent-color: #3b82f6;
+            --accent-hover: #2563eb;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --success-color: #10b981;
+            --success-hover: #059669;
+            --warning-color: #f59e0b;
+            --warning-hover: #d97706;
+            --danger-color: #ef4444;
+            --danger-hover: #dc2626;
+            --card-bg: rgba(30, 41, 59, 0.6);
+            --border-color: rgba(148, 163, 184, 0.2);
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            --spacing-xs: 0.25rem;
+            --spacing-sm: 0.5rem;
+            --spacing-md: 1rem;
+            --spacing-lg: 1.5rem;
+            --spacing-xl: 2rem;
+            --radius-sm: 6px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--primary-bg);
+            color: var(--text-primary);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+
+        .dashboard-header {
+            background: linear-gradient(135deg, var(--secondary-bg) 0%, rgba(30, 41, 59, 0.95) 100%);
+            padding: var(--spacing-lg);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .dashboard-header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: var(--spacing-md);
+            color: var(--text-primary);
+            letter-spacing: -0.5px;
+        }
+
+        .tab-navigation {
+            display: flex;
+            gap: 0.5rem;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            margin-bottom: 1rem;
+        }
+
+        .tab-navigation::-webkit-scrollbar {
+            display: none;
+        }
+
+        .tab-button {
+            padding: 0.75rem 1.5rem;
+            background: transparent;
+            border: 2px solid transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            white-space: nowrap;
+            border-radius: var(--radius-md);
+            font-family: 'Inter', sans-serif;
+            position: relative;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+            font-size: 0.9375rem;
+        }
+
+        .tab-button:hover {
+            color: var(--text-primary);
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .tab-button.active {
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            backdrop-filter: blur(10px);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .card:hover {
+            border-color: var(--accent-color);
+            box-shadow: var(--shadow-md);
+        }
+
+        .card h3 {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: var(--spacing-md);
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--accent-color);
+            font-feature-settings: "tnum";
+            font-variant-numeric: tabular-nums;
+        }
+
+        .metric-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: var(--secondary-bg);
+            border-radius: 3px;
+            margin: 0.5rem 0;
+            overflow: hidden;
+        }
+
+        .progress-bar div {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-color), var(--accent-hover));
+            border-radius: 3px;
+        }
+
+        .network-topology {
+            height: 500px;
+            background: var(--card-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            margin-top: 1rem;
+        }
+
+        .device-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        .device-table th,
+        .device-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .device-table th {
+            background: var(--secondary-bg);
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .status-badge {
+            padding: 0.4rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .status-badge::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .status-badge.authorized {
+            background: rgba(46, 125, 50, 0.1);
+            color: #4caf50;
+            border: 1px solid rgba(76, 175, 80, 0.2);
+        }
+
+        .status-badge.authorized::before {
+            background: #4caf50;
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+        }
+
+        .status-badge.unauthorized {
+            background: rgba(211, 47, 47, 0.1);
+            color: #f44336;
+            border: 1px solid rgba(244, 67, 54, 0.2);
+        }
+
+        .status-badge.unauthorized::before {
+            background: #f44336;
+            box-shadow: 0 0 0 2px rgba(244, 67, 54, 0.2);
+        }
+
+        .button {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            box-shadow: var(--shadow-sm);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.875rem;
+        }
+
+        .button-primary {
+            background: var(--accent-color);
+            color: var(--text-primary);
+        }
+
+        .button-primary:hover {
+            background: var(--accent-hover);
+            box-shadow: var(--shadow-md);
+        }
+
+        .button-danger {
+            background: var(--danger-color);
+            color: var(--text-primary);
+        }
+
+        .button-danger:hover {
+            background: var(--danger-hover);
+            box-shadow: var(--shadow-md);
+        }
+
+        .button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .button-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            border-left: 4px solid transparent;
+        }
+
+        .alert.success { 
+            background: rgba(46, 125, 50, 0.1); 
+            color: #4caf50;
+            border-left-color: #4caf50;
+        }
+        
+        .alert.warning { 
+            background: rgba(237, 108, 2, 0.1); 
+            color: #ff9800;
+            border-left-color: #ff9800;
+        }
+        
+        .alert.danger { 
+            background: rgba(211, 47, 47, 0.1); 
+            color: #f44336;
+            border-left-color: #f44336;
+        }
+
+        .alert.high { 
+            background: rgba(211, 47, 47, 0.1);
+            color: #f44336;
+            border-left-color: #f44336;
+        }
+
+        .alert.medium { 
+            background: rgba(237, 108, 2, 0.1);
+            color: #ff9800;
+            border-left-color: #ff9800;
+        }
+
+        .alert.low { 
+            background: rgba(46, 125, 50, 0.1);
+            color: #4caf50;
+            border-left-color: #4caf50;
+        }
+
+        .alert-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.875rem;
+        }
+
+        .alert-severity {
+            font-weight: 600;
+        }
+
+        .alert-timestamp {
+            color: var(--text-secondary);
+        }
+
+        .alert-message {
+            font-size: 0.9375rem;
+        }
+
+        .alert-device {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .log-timestamp {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.25rem;
+        }
+
+        .log-message {
+            font-size: 0.9375rem;
+        }
+
+        .policy-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem;
+            background: var(--secondary-bg);
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .policy-toggle span {
+            font-weight: 500;
+        }
+
+        .policy-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .policy-name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .policy-description {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .policy-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .status-indicator {
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: rgba(211, 47, 47, 0.1);
+            color: #f44336;
+            border: 1px solid rgba(244, 67, 54, 0.2);
+        }
+
+        .status-indicator.active {
+            background: rgba(46, 125, 50, 0.1);
+            color: #4caf50;
+            border: 1px solid rgba(76, 175, 80, 0.2);
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #666;
+            margin-right: 0.5rem;
+        }
+
+        .status-dot.active {
+            background: #4caf50;
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+        }
+
+        .status-dot.error {
+            background: #f44336;
+            box-shadow: 0 0 0 2px rgba(244, 67, 54, 0.2);
+        }
+
+        .status-text {
+            font-weight: 500;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .metric-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .metric-item .metric-label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .metric-item .metric-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--accent-color);
+        }
+
+        .loading-indicator {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        .alert-details {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            margin-top: 0.5rem;
+        }
+
+        .confidence {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .details {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        /* ML Engine Specific Styles */
+        .ml-status-container {
+            padding: 1rem 0;
+        }
+
+        .ml-status-main {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .status-indicator-large {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .status-dot-large {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #666;
+            box-shadow: 0 0 0 3px rgba(102, 102, 102, 0.2);
+            transition: all var(--transition-normal);
+        }
+
+        .status-dot-large.active {
+            background: var(--success-color);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.3);
+        }
+
+        .status-dot-large.error {
+            background: var(--danger-color);
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.3);
+        }
+
+        .status-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .status-text-large {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .status-subtitle {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .ml-controls {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem;
+            background: var(--secondary-bg);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            transition: all var(--transition-normal);
+        }
+
+        .stat-item:hover {
+            border-color: var(--accent-color);
+        }
+
+        .stat-icon {
+            font-size: 1.5rem;
+            opacity: 0.8;
+        }
+
+        .stat-content {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--accent-color);
+            font-feature-settings: "tnum";
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .metrics-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .metric-row:last-child {
+            border-bottom: none;
+        }
+
+        .metric-row .metric-label {
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .metric-row .metric-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .detection-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .detection-filters {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .filter-btn {
+            padding: 0.5rem 1rem;
+            border-radius: 1rem;
+            background: var(--secondary-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .filter-btn:hover {
+            border-color: var(--accent-color);
+            color: var(--text-primary);
+        }
+
+        .filter-btn.active {
+            background: var(--accent-color);
+            color: var(--text-primary);
+            border-color: var(--accent-color);
+        }
+
+        .detection-stats {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .detection-count {
+            font-weight: 500;
+        }
+
+        .detections-container {
+            max-height: 500px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--accent-color) var(--secondary-bg);
+        }
+
+        .detections-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .detections-container::-webkit-scrollbar-track {
+            background: var(--secondary-bg);
+            border-radius: 3px;
+        }
+
+        .detections-container::-webkit-scrollbar-thumb {
+            background: var(--accent-color);
+            border-radius: 3px;
+        }
+
+        .detection-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            background: var(--secondary-bg);
+            border-radius: 8px;
+            border-left: 4px solid transparent;
+            transition: all var(--transition-normal);
+        }
+
+        .detection-item:hover {
+            box-shadow: var(--shadow-md);
+            border-left-width: 6px;
+        }
+
+        .detection-item.attack {
+            border-left-color: #f44336;
+            background: rgba(244, 67, 54, 0.05);
+        }
+
+        .detection-item.normal {
+            border-left-color: #4caf50;
+            background: rgba(76, 175, 80, 0.05);
+        }
+
+        .detection-icon {
+            font-size: 1.25rem;
+            margin-top: 0.25rem;
+        }
+
+        .detection-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .detection-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .detection-type {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .detection-timestamp {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .detection-details {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .detection-confidence {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .confidence-bar {
+            width: 100px;
+            height: 4px;
+            background: var(--secondary-bg);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-color), var(--accent-hover));
+            border-radius: 2px;
+        }
+
+        .detection-device {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .loading-spinner {
+            display: none;
+        }
+
+        .loading-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        @media (max-width: 768px) {
+            .ml-status-main {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .detection-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .detection-filters {
+                justify-content: center;
+            }
+        }
+
+        .scroll-container {
+            max-height: 400px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--accent-color) var(--secondary-bg);
+        }
+
+        .scroll-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .scroll-container::-webkit-scrollbar-track {
+            background: var(--secondary-bg);
+            border-radius: 3px;
+        }
+
+        .scroll-container::-webkit-scrollbar-thumb {
+            background: var(--accent-color);
+            border-radius: 3px;
+        }
+
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 0.5rem;
+            }
+
+            .grid-container {
+                grid-template-columns: 1fr;
+            }
+
+            .network-topology {
+                height: 300px;
+            }
+
+            .device-table {
+                display: block;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .tab-button {
+                padding: 0.5rem 1rem;
+                font-size: 0.9rem;
+            }
+
+            .card {
+                padding: 1rem;
+            }
+
+            .metric-value {
+                font-size: 1.5rem;
+            }
+
+            .policy-toggle {
+                flex-direction: column;
+                gap: 0.5rem;
+                align-items: stretch;
+                text-align: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .dashboard-header h1 {
+                font-size: 1.2rem;
+            }
+
+            .tab-button {
+                padding: 0.4rem 0.8rem;
+                font-size: 0.8rem;
+            }
+
+            .button {
+                width: 100%;
+                margin-bottom: 0.5rem;
+            }
+
+            .metric-value {
+                font-size: 1.25rem;
+            }
+
+            .search-box input {
+                padding: 0.8rem 0.8rem 0.8rem 2.5rem;
+                font-size: 0.9rem;
+            }
+
+            .search-box::before {
+                left: 0.8rem;
+                font-size: 1rem;
+            }
+
+            .search-filters {
+                gap: 0.4rem;
+            }
+
+            .search-filter {
+                padding: 0.3rem 0.6rem;
+                font-size: 0.75rem;
+            }
+        }
+
+        /* Search Box Styles */
+        .search-box {
+            margin-bottom: 1.5rem;
+            position: relative;
+            width: 100%;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 1rem 1rem 1rem 3rem;
+            border-radius: 12px;
+            border: 2px solid var(--border-color);
+            background: var(--secondary-bg);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            font-family: 'Inter', sans-serif;
+            transition: all var(--transition-normal);
+        }
+
+        .search-box::before {
+            content: '🔍';
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 1.2rem;
+            opacity: 0.7;
+            pointer-events: none;
+            transition: all var(--transition-normal);
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(51, 153, 255, 0.1);
+        }
+
+        .search-box input:hover {
+            border-color: var(--accent-color);
+        }
+
+        .search-box input::placeholder {
+            color: var(--text-secondary);
+            opacity: 0.7;
+        }
+
+        .search-filters {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .search-filter {
+            padding: 0.4rem 0.8rem;
+            border-radius: 1rem;
+            background: var(--secondary-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all var(--transition-normal);
+            user-select: none;
+        }
+
+        .search-filter:hover {
+            border-color: var(--accent-color);
+            color: var(--text-primary);
+        }
+
+        .search-filter.active {
+            background: var(--accent-color);
+            color: var(--text-primary);
+            border-color: var(--accent-color);
+        }
+        
+        .version-badge {
+            margin-left: 0.6rem;
+            padding: 0.2rem 0.55rem;
+            border-radius: 999px;
+            background: var(--accent-color);
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+    </style>
+    <script src="static/vis-network.min.js"></script>
+</head>
+<body>
+    <header class="dashboard-header">
+        <h1>SecureIoT Command Center <span class="version-badge">v2</span></h1>
+        <nav class="tab-navigation" role="tablist" aria-label="Main Navigation">
+            <button class="tab-button active" data-tab="overview" role="tab" aria-controls="overview" tabindex="0">Overview</button>
+            <button class="tab-button" data-tab="devices" role="tab" aria-controls="devices" tabindex="0">Devices</button>
+            <button class="tab-button" data-tab="trust" role="tab" aria-controls="trust" tabindex="0">Trust Scores</button>
+            <button class="tab-button" data-tab="honeypot" role="tab" aria-controls="honeypot" tabindex="0">Honeypot</button>
+            <button class="tab-button" data-tab="certificates" role="tab" aria-controls="certificates" tabindex="0">Certificates</button>
+            <button class="tab-button" data-tab="security" role="tab" aria-controls="security" tabindex="0">Security</button>
+            <button class="tab-button" data-tab="ml-engine" role="tab" aria-controls="ml-engine" tabindex="0">ML Engine</button>
+            <button class="tab-button" data-tab="analytics" role="tab" aria-controls="analytics" tabindex="0">Analytics</button>
+            <button class="tab-button" data-tab="approval" role="tab" aria-controls="approval" tabindex="0">Device Approval</button>
+        </nav>
+    </header>
+
+    <main class="container">
+        <!-- Overview Tab -->
+        <section id="overview" class="tab-content active">
+            <div class="grid-container">
+                <div class="card">
+                    <h3>🌐 Network Status</h3>
+                    <div class="metric-value" id="total-devices">0</div>
+                    <div class="metric-label">Total Devices</div>
+                    <div style="margin-top: 0.5rem; font-size: 0.875rem; color: var(--text-secondary);">
+                        <span id="online-devices">0</span> online | <span id="offline-devices">0</span> offline
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>📊 Network Traffic</h3>
+                    <div class="metric-value" id="overview-total-packets">0</div>
+                    <div class="metric-label">Total Packets Processed</div>
+                    <div style="margin-top: 0.5rem; font-size: 0.875rem; color: var(--text-secondary);">
+                        <span id="overview-packets-per-min">0</span> packets/min
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>⚠️ Attack Rate</h3>
+                    <div class="metric-value" id="overview-attack-rate">0%</div>
+                    <div class="metric-label">Threat Detection Rate</div>
+                    <div style="margin-top: 0.5rem; font-size: 0.875rem; color: var(--text-secondary);">
+                        <span id="overview-attack-packets">0</span> attack packets detected
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>💚 System Health</h3>
+                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+                        <div class="progress-bar" style="flex: 1;">
+                            <div id="system-health" style="width: 0%"></div>
+                        </div>
+                        <div style="font-size: 1.5rem; font-weight: 600; color: var(--accent-color); min-width: 60px; text-align: right;" id="health-percentage">0%</div>
+                    </div>
+                    <div class="metric-label">Device Availability</div>
+                </div>
+            </div>
+            <div class="grid-container" style="margin-top: 1rem;">
+                <div class="card">
+                    <h3>🤖 ML Engine Status</h3>
+                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                        <span class="status-dot-large" id="overview-ml-status-dot"></span>
+                        <span id="overview-ml-status-text" style="font-weight: 500;">Initializing...</span>
+                    </div>
+                    <div class="metric-label">Model Status: <span id="overview-model-status">Loading...</span></div>
+                    <div class="metric-label" style="margin-top: 0.5rem;">Detection Accuracy: <span id="overview-detection-accuracy">--</span></div>
+                </div>
+                <div class="card">
+                    <h3>🔒 Security Alerts</h3>
+                    <div class="metric-value" id="overview-alerts-count">0</div>
+                    <div class="metric-label">Active Alerts</div>
+                    <div style="margin-top: 0.5rem; font-size: 0.875rem;">
+                        <span style="color: var(--danger-color);" id="overview-high-alerts">0</span> high | 
+                        <span style="color: var(--warning-color);" id="overview-medium-alerts">0</span> medium
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>🍯 Honeypot Status</h3>
+                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                        <span class="status-dot" id="overview-honeypot-status-dot"></span>
+                        <span id="overview-honeypot-status" style="font-weight: 500;">Stopped</span>
+                    </div>
+                    <div class="metric-label">Threats Captured: <span id="overview-threats-captured">0</span></div>
+                    <div class="metric-label" style="margin-top: 0.5rem;">Redirected Devices: <span id="overview-redirected-devices">0</span></div>
+                </div>
+            </div>
+            <div class="card" style="margin-top: 1rem;">
+                <h3>🗺️ Network Topology</h3>
+                <div class="network-topology" id="network-visualization"></div>
+            </div>
+        </section>
+
+        <!-- Devices Tab -->
+        <section id="devices" class="tab-content">
+            <div class="grid-container">
+                <div class="card">
+                    <h3>📱 Device Statistics</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-icon">🌐</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="devices-total-count">0</div>
+                                <div class="stat-label">Total Devices</div>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon">✅</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="devices-online-count">0</div>
+                                <div class="stat-label">Online</div>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon">📦</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="devices-total-packets">0</div>
+                                <div class="stat-label">Total Packets</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>🔌 Connected Devices</h3>
+                <div class="scroll-container">
+                    <table class="device-table">
+                        <thead>
+                            <tr>
+                                <th>Device ID</th>
+                                <th>Status</th>
+                                <th>Authorization</th>
+                                <th>Packets</th>
+                                <th>Packets/Min</th>
+                                <th>Last Seen</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="device-list">
+                            {% for device, authorized in devices.items() %}
+                            <tr>
+                                <td><strong>{{ device }}</strong></td>
+                                <td>
+                                    <span class="status-badge" id="status-{{ device }}">
+                                        Checking...
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="status-badge {{ 'authorized' if authorized else 'unauthorized' }}">
+                                        {{ 'Authorized' if authorized else 'Unauthorized' }}
+                                    </span>
+                                </td>
+                                <td id="packets-{{ device }}">{{ data[device] }}</td>
+                                <td id="packets-per-min-{{ device }}">0</td>
+                                <td id="last-seen-{{ device }}">--</td>
+                                <td>
+                                    <form method="POST" action="/update" style="display: inline;">
+                                        <input type="hidden" name="device_id" value="{{ device }}">
+                                        <input type="hidden" name="action" value="{{ 'revoke' if authorized else 'authorize' }}">
+                                        <button type="submit" class="button {{ 'button-danger' if authorized else 'button-primary' }}">
+                                            {{ 'Revoke' if authorized else 'Authorize' }}
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Security Tab -->
+        <section id="security" class="tab-content">
+            <div class="grid-container">
+                <div class="card">
+                    <h3>🛡️ Security Policies</h3>
+                    <div class="policy-toggle">
+                        <div class="policy-info">
+                            <span class="policy-name">Packet Inspection</span>
+                            <span class="policy-description">Deep packet inspection for threat detection</span>
+                        </div>
+                        <div class="policy-controls">
+                            <span class="status-indicator" id="packet-inspection-status">Inactive</span>
+                            <button class="button button-primary" onclick="togglePolicy('packet_inspection')" id="packet-inspection-btn">Enable</button>
+                        </div>
+                    </div>
+                    <div class="policy-toggle">
+                        <div class="policy-info">
+                            <span class="policy-name">Traffic Shaping</span>
+                            <span class="policy-description">Bandwidth control and QoS management</span>
+                        </div>
+                        <div class="policy-controls">
+                            <span class="status-indicator" id="traffic-shaping-status">Inactive</span>
+                            <button class="button button-primary" onclick="togglePolicy('traffic_shaping')" id="traffic-shaping-btn">Enable</button>
+                        </div>
+                    </div>
+                    <div class="policy-toggle">
+                        <div class="policy-info">
+                            <span class="policy-name">Dynamic Routing</span>
+                            <span class="policy-description">Adaptive network path optimization</span>
+                        </div>
+                        <div class="policy-controls">
+                            <span class="status-indicator" id="dynamic-routing-status">Inactive</span>
+                            <button class="button button-primary" onclick="togglePolicy('dynamic_routing')" id="dynamic-routing-btn">Enable</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>🚨 Security Alerts</h3>
+                    <div id="security-alerts" class="scroll-container">
+                        <div class="alert-filters">
+                            <button class="filter-btn active" data-severity="all">All</button>
+                            <button class="filter-btn" data-severity="high">High</button>
+                            <button class="filter-btn" data-severity="medium">Medium</button>
+                            <button class="filter-btn" data-severity="low">Low</button>
+                        </div>
+                        <div class="alerts-list"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>📋 Policy Logs</h3>
+                <div class="policy-logs-header">
+                    <div class="search-box">
+                        <input type="text" id="log-search" placeholder="Search logs...">
+                    </div>
+                    <div class="log-controls">
+                        <button class="button button-primary" onclick="clearLogs()">Clear Logs</button>
+                        <button class="button button-primary" onclick="exportLogs()">Export Logs</button>
+                    </div>
+                </div>
+                <div id="policy-logs" class="scroll-container"></div>
+            </div>
+        </section>
+
+        <!-- ML Engine Tab -->
+        <section id="ml-engine" class="tab-content">
+            <!-- ML Engine Status Card -->
+            <div class="card">
+                <h3>🤖 ML Security Engine</h3>
+                <div class="ml-status-container">
+                    <div class="ml-status-main">
+                        <div class="status-indicator-large">
+                            <span class="status-dot-large" id="ml-status-dot"></span>
+                            <div class="status-info">
+                                <span class="status-text-large" id="ml-status-text">Initializing...</span>
+                                <span class="status-subtitle" id="ml-status-subtitle">Loading ML model and starting monitoring</span>
+                            </div>
+                        </div>
+                        <div class="ml-controls">
+                            <button class="button button-primary" onclick="initializeML()" id="ml-init-btn">
+                                <span class="button-icon">🔄</span>Initialize ML Engine
+                            </button>
+                            <button class="button button-primary" id="ml-monitoring-toggle" onclick="toggleMLMonitoring()">
+                                <span class="button-icon">⏸️</span>Pause Monitoring
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Statistics Grid -->
+            <div class="grid-container">
+                <div class="card">
+                    <h3>📊 Network Statistics</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-icon">📦</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="total-packets">0</div>
+                                <div class="stat-label">Total Packets</div>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon">⚠️</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="attack-packets">0</div>
+                                <div class="stat-label">Attack Packets</div>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon">📈</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="attack-rate">0%</div>
+                                <div class="stat-label">Attack Rate</div>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon">🎯</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="model-confidence">0%</div>
+                                <div class="stat-label">Model Confidence</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>⏱️ System Metrics</h3>
+                    <div class="metrics-container">
+                        <div class="metric-row">
+                            <span class="metric-label">Uptime:</span>
+                            <span class="metric-value" id="ml-uptime">0m</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Model Status:</span>
+                            <span class="metric-value" id="model-status">Loading...</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Last Health Check:</span>
+                            <span class="metric-value" id="last-health-check">--</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Detection Accuracy:</span>
+                            <span class="metric-value" id="detection-accuracy">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attack Detection Section -->
+            <div class="card">
+                <h3>🚨 Real-time Attack Detection</h3>
+                <div class="detection-header">
+                    <div class="detection-filters">
+                        <button class="filter-btn active" data-filter="all">All</button>
+                        <button class="filter-btn" data-filter="attacks">Attacks Only</button>
+                        <button class="filter-btn" data-filter="normal">Normal Traffic</button>
+                    </div>
+                    <div class="detection-stats">
+                        <span class="detection-count">Recent Detections: <span id="detection-count">0</span></span>
+                    </div>
+                </div>
+                <div id="ml-detections" class="detections-container">
+                    <div class="loading-indicator">
+                        <span>Loading detection data...</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Trust Scores Tab -->
+        <section id="trust" class="tab-content">
+            <div class="grid-container">
+                <div class="card">
+                    <h3>⭐ Average Trust Score</h3>
+                    <div class="metric-value" id="avg-trust-score">0</div>
+                    <div class="metric-label">Network Trust Level</div>
+                </div>
+                <div class="card">
+                    <h3>✅ Trusted Devices</h3>
+                    <div class="metric-value" id="trusted-devices-count">0</div>
+                    <div class="metric-label">Score ≥ 70</div>
+                </div>
+                <div class="card">
+                    <h3>⚠️ Suspicious Devices</h3>
+                    <div class="metric-value" id="suspicious-devices-count">0</div>
+                    <div class="metric-label">Score < 50</div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>📊 Device Trust Scores</h3>
+                <div class="scroll-container">
+                    <table class="device-table">
+                        <thead>
+                            <tr>
+                                <th>Device ID</th>
+                                <th>Trust Score</th>
+                                <th>Trust Level</th>
+                                <th>Status</th>
+                                <th>Last Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trust-scores-list"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Honeypot Tab -->
+        <section id="honeypot" class="tab-content">
+            <div class="grid-container">
+                <div class="card">
+                    <h3>🍯 Honeypot Status</h3>
+                    <div class="metric-value" id="honeypot-status">Stopped</div>
+                    <div class="metric-label" id="honeypot-status-label">Container Status</div>
+                </div>
+                <div class="card">
+                    <h3>🎯 Threats Captured</h3>
+                    <div class="metric-value" id="threats-captured">0</div>
+                    <div class="metric-label">Total Threats</div>
+                </div>
+                <div class="card">
+                    <h3>🚫 Blocked IPs</h3>
+                    <div class="metric-value" id="blocked-ips-count">0</div>
+                    <div class="metric-label">Auto-Blocked</div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>🔍 Recent Threats</h3>
+                <div class="scroll-container">
+                    <div id="recent-threats-list" class="alerts-list"></div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>🛡️ Mitigation Rules</h3>
+                <div class="scroll-container">
+                    <table class="device-table">
+                        <thead>
+                            <tr>
+                                <th>IP Address</th>
+                                <th>Rule Type</th>
+                                <th>Reason</th>
+                                <th>Generated At</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mitigation-rules-list"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Certificates Tab -->
+        <section id="certificates" class="tab-content">
+            <div class="grid-container">
+                <div class="card">
+                    <h3>🔐 Certificate Overview</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-icon">📜</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="certificates-total">0</div>
+                                <div class="stat-label">Total Certificates</div>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon">✅</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="certificates-valid">0</div>
+                                <div class="stat-label">Valid</div>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon">⚠️</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="certificates-expiring">0</div>
+                                <div class="stat-label">Expiring Soon</div>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon">❌</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="certificates-expired">0</div>
+                                <div class="stat-label">Expired</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Device Certificates</h3>
+                <div class="scroll-container">
+                    <table class="device-table">
+                        <thead>
+                            <tr>
+                                <th>Device ID</th>
+                                <th>MAC Address</th>
+                                <th>Certificate Status</th>
+                                <th>Valid Until</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="certificates-list"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Analytics Tab -->
+        <section id="analytics" class="tab-content">
+            <div class="grid-container">
+                <div class="card">
+                    <h3>📈 Network Performance</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-icon">📦</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="analytics-total-packets">0</div>
+                                <div class="stat-label">Total Packets</div>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon">⚡</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="analytics-packets-per-min">0</div>
+                                <div class="stat-label">Packets/Min</div>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon">🌐</div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="analytics-online-devices">0</div>
+                                <div class="stat-label">Online Devices</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>⚙️ System Metrics</h3>
+                    <div class="metrics-container">
+                        <div class="metric-row">
+                            <span class="metric-label">System Health:</span>
+                            <span class="metric-value" id="analytics-system-health">0%</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">ML Engine Status:</span>
+                            <span class="metric-value" id="analytics-ml-status">Unknown</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Honeypot Status:</span>
+                            <span class="metric-value" id="analytics-honeypot-status">Stopped</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Active Alerts:</span>
+                            <span class="metric-value" id="analytics-active-alerts">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>📊 Traffic Analysis</h3>
+                <div class="scroll-container">
+                    <div id="traffic-analysis">
+                        <div class="loading-indicator">Loading traffic analysis...</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Device Approval Tab -->
+        <section id="approval" class="tab-content">
+            <div class="grid-container">
+                <div class="card">
+                    <h3>⏳ Pending Approvals</h3>
+                    <div class="metric-value" id="pending-count">0</div>
+                    <div class="metric-label">Devices Awaiting Review</div>
+                </div>
+                <div class="card">
+                    <h3>✅ Approved Today</h3>
+                    <div class="metric-value" id="approved-today">0</div>
+                    <div class="metric-label">Devices Approved</div>
+                </div>
+                <div class="card">
+                    <h3>❌ Rejected Today</h3>
+                    <div class="metric-value" id="rejected-today">0</div>
+                    <div class="metric-label">Devices Rejected</div>
+                </div>
+            </div>
+            <div class="card" style="margin-top: 1rem;">
+                <h3>📋 Pending Device Approvals</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                    New devices detected on the WiFi network are listed below. Review and approve or reject each device.
+                </p>
+                <div id="pending-devices-container" class="scroll-container">
+                    <div class="loading-indicator">Loading pending devices...</div>
+                </div>
+            </div>
+            <div class="card" style="margin-top: 1rem;">
+                <h3>📜 Device Approval History</h3>
+                <div id="device-history-container" class="scroll-container">
+                    <div class="loading-indicator">Loading history...</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // Tab Navigation (initialized on DOMContentLoaded for reliability)
+        function initTabNavigation() {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            function activateTab(tabButton) {
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                tabContents.forEach(c => c.classList.remove('active'));
+
+                tabButton.classList.add('active');
+                const targetId = tabButton.dataset.tab;
+                const target = document.getElementById(targetId);
+                if (target) {
+                    target.classList.add('active');
+                    
+                    // Call appropriate update functions based on active tab
+                    if (targetId === 'overview') {
+                        updateOverviewStatistics();
+                    } else if (targetId === 'security') {
+                        updatePolicyLogs();
+                        updateSecurityAlerts();
+                    } else if (targetId === 'ml-engine') {
+                        updateMLMetrics();
+                        updateMLDetections();
+                        updateNetworkStatistics();
+                    } else if (targetId === 'trust') {
+                        updateTrustScores();
+                    } else if (targetId === 'honeypot') {
+                        updateHoneypotStatus();
+                    } else if (targetId === 'approval') {
+                        loadPendingDevices();
+                        loadDeviceHistory();
+                        loadFailedTokenRequests();
+                    } else if (targetId === 'certificates') {
+                        updateCertificates();
+                    } else if (targetId === 'analytics') {
+                        updateAnalytics();
+                    }
+                }
+            }
+
+            tabButtons.forEach(button => {
+                // mouse click
+                button.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    activateTab(button);
+                });
+
+                // keyboard accessibility (Enter / Space)
+                button.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        activateTab(button);
+                    }
+                });
+            });
+        }
+
+        // Network Visualization
+        function initializeNetwork() {
+            const container = document.getElementById('network-visualization');
+            const options = {
+                nodes: {
+                    shape: 'dot',
+                    size: 30,
+                    font: {
+                        size: 14,
+                        color: '#ffffff'
+                    },
+                    borderWidth: 2,
+                    shadow: true,
+                    color: {
+                        border: '#2e7d32',
+                        background: '#4caf50',
+                        highlight: {
+                            border: '#2e7d32',
+                            background: '#66bb6a'
+                        },
+                        hover: {
+                            border: '#2e7d32',
+                            background: '#66bb6a'
+                        }
+                    }
+                },
+                edges: {
+                    width: 2,
+                    color: {
+                        color: '#007FFF',
+                        highlight: '#ffffff',
+                        hover: '#ffffff',
+                        opacity: 0.8
+                    },
+                    smooth: {
+                        type: 'continuous'
+                    }
+                },
+                physics: {
+                    stabilization: false,
+                    barnesHut: {
+                        gravitationalConstant: -80000,
+                        springConstant: 0.001,
+                        springLength: 200
+                    }
+                },
+                groups: {
+                    active: {
+                        color: {
+                            border: '#2e7d32',
+                            background: '#4caf50',
+                            highlight: {
+                                border: '#2e7d32',
+                                background: '#66bb6a'
+                            },
+                            hover: {
+                                border: '#2e7d32',
+                                background: '#66bb6a'
+                            }
+                        }
+                    },
+                    inactive: {
+                        color: {
+                            border: '#b71c1c',
+                            background: '#f44336',
+                            highlight: {
+                                border: '#b71c1c',
+                                background: '#ef5350'
+                            },
+                            hover: {
+                                border: '#b71c1c',
+                                background: '#ef5350'
+                            }
+                        }
+                    }
+                }
+            };
+
+            return new vis.Network(container, { nodes: new vis.DataSet(), edges: new vis.DataSet() }, options);
+        }
+
+        let network = initializeNetwork();
+
+        // Data Updates
+        function updateData() {
+            fetch('/get_data')
+                .then(response => response.json())
+                .then(data => {
+                    updateDeviceMetrics(data);
+                    updateDeviceTable(data);
+                });
+
+            fetch('/get_topology_with_mac')
+                .then(response => response.json())
+                .then(data => updateTopology(data));
+
+            fetch('/get_health_metrics')
+                .then(response => response.json())
+                .then(data => updateHealthMetrics(data));
+            
+            // Update network statistics
+            updateNetworkStatistics();
+            
+            // Update overview statistics if overview tab is active
+            if (document.getElementById('overview').classList.contains('active')) {
+                updateOverviewStatistics();
+            }
+
+            // Update security section if active
+            if (document.getElementById('security').classList.contains('active')) {
+                updatePolicyLogs();
+                updateSecurityAlerts();
+            }
+
+            if (document.getElementById('ml-engine').classList.contains('active')) {
+                updateMLMetrics();
+                updateMLDetections();
+                updateNetworkStatistics();
+            }
+            
+            // Auto-refresh suspicious device alerts every 5 seconds (separate from main update)
+            if (!window.suspiciousAlertsInterval) {
+                window.suspiciousAlertsInterval = setInterval(() => {
+                    if (document.getElementById('security')?.classList.contains('active')) {
+                        updateSecurityAlerts();
+                    }
+                }, 5000);
+            }
+
+            if (document.getElementById('analytics').classList.contains('active')) {
+                updateAnalytics();
+            }
+
+            // Update trust scores if active
+            if (document.getElementById('trust').classList.contains('active')) {
+                updateTrustScores();
+            }
+
+            // Update honeypot if active
+            if (document.getElementById('honeypot').classList.contains('active')) {
+                updateHoneypotStatus();
+            }
+
+            // Update certificates if active
+            if (document.getElementById('certificates').classList.contains('active')) {
+                updateCertificates();
+            }
+        }
+
+        function updateDeviceMetrics(data) {
+            const deviceCount = Object.keys(data).length;
+            const totalPackets = Object.values(data).reduce((sum, device) => sum + (device.packets || 0), 0);
+            
+            // Update overview tab
+            const totalDevicesEl = document.getElementById('total-devices');
+            if (totalDevicesEl) totalDevicesEl.textContent = deviceCount;
+            
+            const overviewTotalPacketsEl = document.getElementById('overview-total-packets');
+            if (overviewTotalPacketsEl) overviewTotalPacketsEl.textContent = totalPackets;
+        }
+        
+        function updateOverviewStatistics() {
+            // Update network statistics in overview
+            fetch('/api/network/statistics')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success' && data.statistics) {
+                        const stats = data.statistics;
+                        const network = stats.network || {};
+                        const mlEngine = stats.ml_engine || {};
+                        
+                        // Update device counts
+                        const onlineDevicesEl = document.getElementById('online-devices');
+                        const offlineDevicesEl = document.getElementById('offline-devices');
+                        if (onlineDevicesEl) onlineDevicesEl.textContent = network.online_devices || 0;
+                        if (offlineDevicesEl) offlineDevicesEl.textContent = network.offline_devices || 0;
+                        
+                        // Update ML engine status
+                        fetch('/ml/status')
+                            .then(response => response.json())
+                            .then(mlData => {
+                                const mlStatusDot = document.getElementById('overview-ml-status-dot');
+                                const mlStatusText = document.getElementById('overview-ml-status-text');
+                                const modelStatus = document.getElementById('overview-model-status');
+                                const detectionAccuracy = document.getElementById('overview-detection-accuracy');
+                                
+                                if (mlData.status === 'active') {
+                                    if (mlStatusDot) {
+                                        mlStatusDot.className = 'status-dot-large active';
+                                    }
+                                    if (mlStatusText) mlStatusText.textContent = 'Active';
+                                } else {
+                                    if (mlStatusDot) {
+                                        mlStatusDot.className = 'status-dot-large error';
+                                    }
+                                    if (mlStatusText) mlStatusText.textContent = 'Inactive';
+                                }
+                                
+                                if (modelStatus && mlData.statistics) {
+                                    modelStatus.textContent = mlData.statistics.model_status || 'Unknown';
+                                }
+                                if (detectionAccuracy && mlData.statistics) {
+                                    detectionAccuracy.textContent = (mlData.statistics.detection_accuracy || 0).toFixed(1) + '%';
+                                }
+                            })
+                            .catch(() => {});
+                        
+                        // Update attack statistics
+                        const attackRateEl = document.getElementById('overview-attack-rate');
+                        const attackPacketsEl = document.getElementById('overview-attack-packets');
+                        if (attackRateEl) attackRateEl.textContent = (mlEngine.attack_rate || 0).toFixed(1) + '%';
+                        if (attackPacketsEl) attackPacketsEl.textContent = mlEngine.attack_packets || 0;
+                        
+                        // Update packets per minute from device stats
+                        const devices = stats.devices || {};
+                        let totalPacketsPerMin = 0;
+                        Object.values(devices).forEach(device => {
+                            totalPacketsPerMin += device.packets_per_minute || 0;
+                        });
+                        const packetsPerMinEl = document.getElementById('overview-packets-per-min');
+                        if (packetsPerMinEl) packetsPerMinEl.textContent = totalPacketsPerMin;
+                    }
+                })
+                .catch(() => {});
+            
+            // Update security alerts count
+            fetch('/api/alerts/suspicious_devices')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success' && data.alerts) {
+                        const alerts = data.alerts;
+                        const alertsCountEl = document.getElementById('overview-alerts-count');
+                        const highAlertsEl = document.getElementById('overview-high-alerts');
+                        const mediumAlertsEl = document.getElementById('overview-medium-alerts');
+                        
+                        if (alertsCountEl) alertsCountEl.textContent = alerts.length;
+                        
+                        const highCount = alerts.filter(a => a.severity === 'high').length;
+                        const mediumCount = alerts.filter(a => a.severity === 'medium').length;
+                        
+                        if (highAlertsEl) highAlertsEl.textContent = highCount;
+                        if (mediumAlertsEl) mediumAlertsEl.textContent = mediumCount;
+                    }
+                })
+                .catch(() => {});
+            
+            // Update honeypot status
+            fetch('/api/honeypot/redirected_devices')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const honeypotStatusDot = document.getElementById('overview-honeypot-status-dot');
+                        const honeypotStatus = document.getElementById('overview-honeypot-status');
+                        const threatsCaptured = document.getElementById('overview-threats-captured');
+                        const redirectedDevices = document.getElementById('overview-redirected-devices');
+                        
+                        if (data.container_running) {
+                            if (honeypotStatusDot) honeypotStatusDot.className = 'status-dot active';
+                            if (honeypotStatus) honeypotStatus.textContent = 'Running';
+                        } else {
+                            if (honeypotStatusDot) honeypotStatusDot.className = 'status-dot';
+                            if (honeypotStatus) honeypotStatus.textContent = 'Stopped';
+                        }
+                        
+                        if (threatsCaptured) threatsCaptured.textContent = data.total_threats || 0;
+                        if (redirectedDevices) redirectedDevices.textContent = data.redirected_count || 0;
+                    }
+                })
+                .catch(() => {});
+        }
+
+        function updateDeviceTable(data) {
+            const tbody = document.getElementById('device-list');
+            Object.entries(data).forEach(([deviceId, info]) => {
+                const packetsEl = document.getElementById(`packets-${deviceId}`);
+                const rateLimitEl = document.getElementById(`rate-limit-${deviceId}`);
+                if (packetsEl) packetsEl.textContent = info.packets;
+                if (rateLimitEl) rateLimitEl.textContent = info.rate_limit_status;
+            });
+        }
+
+        function updateTopology(data) {
+            // Enhanced topology processing: set group based on status and connection
+            const nodes = data.nodes.map(node => {
+                // Check if device is connected (has an edge or is online/active)
+                const isOnline = node.online === true || node.status === 'active';
+                const hasEdge = Array.isArray(data.edges) && data.edges.some(edge => 
+                    edge.from === node.id || edge.to === node.id
+                );
+                // Gateway is always connected, devices are connected if online and have edge
+                const isConnected = node.type === 'gateway' || (isOnline && hasEdge);
+                
+                // Determine group: green for connected/active devices, red for inactive
+                const group = isConnected ? 'active' : 'inactive';
+                
+                return {
+                    ...node,
+                    group: group,
+                    title: `${node.label}<br>Status: ${node.status || (node.online ? 'active' : 'inactive')}<br>Connection: ${isConnected ? 'Connected' : 'Disconnected'}<br>Last Seen: ${new Date(node.last_seen * 1000).toLocaleTimeString()}`,
+                    size: node.type === 'gateway' ? 40 : 30,
+                    font: {
+                        size: 14,
+                        color: '#ffffff',
+                        face: 'Inter'
+                    }
+                };
+            });
+
+            // Create edges with custom styling
+            const edges = Array.isArray(data.edges) ? data.edges.map(edge => ({
+                ...edge,
+                color: {
+                    color: '#007FFF',
+                    highlight: '#ffffff',
+                    hover: '#ffffff',
+                    opacity: 0.8
+                },
+                width: 2,
+                smooth: {
+                    type: 'continuous',
+                    roundness: 0.5
+                },
+                arrows: {
+                    to: {
+                        enabled: true,
+                        scaleFactor: 0.5
+                    }
+                }
+            })) : [];
+
+            network.setData({
+                nodes: new vis.DataSet(nodes),
+                edges: new vis.DataSet(edges)
+            });
+        }
+
+        function updateHealthMetrics(data) {
+            // Update health bar based on real device online/offline status
+            const healthBar = document.getElementById('system-health');
+            const healthPercentageEl = document.getElementById('health-percentage');
+            
+            if (!healthBar) return;
+            
+            const devices = Object.values(data);
+            if (devices.length === 0) {
+                healthBar.style.width = '0%';
+                if (healthPercentageEl) healthPercentageEl.textContent = '0%';
+                return;
+            }
+            
+            // Calculate health based on online devices percentage
+            const onlineDevices = devices.filter(d => d.online === true || d.status === 'online').length;
+            const healthPercentage = (onlineDevices / devices.length) * 100;
+            healthBar.style.width = `${healthPercentage}%`;
+            if (healthPercentageEl) healthPercentageEl.textContent = `${healthPercentage.toFixed(0)}%`;
+        }
+        
+        function updateNetworkStatistics() {
+            fetch('/api/network/statistics?t=' + Date.now())
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success' && data.statistics) {
+                        const stats = data.statistics;
+                        
+                        // Update ML engine statistics if available
+                        if (stats.ml_engine) {
+                            const mlStats = stats.ml_engine;
+                            const totalPacketsEl = document.getElementById('total-packets');
+                            const attackPacketsEl = document.getElementById('attack-packets');
+                            const attackRateEl = document.getElementById('attack-rate');
+                            const modelConfidenceEl = document.getElementById('model-confidence');
+                            
+                            if (totalPacketsEl) totalPacketsEl.textContent = mlStats.total_packets || 0;
+                            if (attackPacketsEl) attackPacketsEl.textContent = mlStats.attack_packets || 0;
+                            if (attackRateEl) attackRateEl.textContent = `${(mlStats.attack_rate || 0).toFixed(1)}%`;
+                            if (modelConfidenceEl) modelConfidenceEl.textContent = `${(mlStats.detection_accuracy || 0).toFixed(1)}%`;
+                        }
+                        
+                        // Update network overview if available
+                        if (stats.network) {
+                            // Could add network-level stats display here if needed
+                            console.log('Network stats:', stats.network);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching network statistics:', error);
+                });
+        }
+
+        function updatePolicyLogs() {
+            fetch('/get_policy_logs')
+                .then(response => response.json())
+                .then(logs => {
+                    const container = document.getElementById('policy-logs');
+                    const searchTerm = document.getElementById('log-search').value.toLowerCase();
+                    
+                    const filteredLogs = logs.filter(log => 
+                        searchTerm ? log.toLowerCase().includes(searchTerm) : true
+                    );
+
+                    container.innerHTML = filteredLogs.map(log => {
+                        const timestamp = new Date().toLocaleTimeString();
+                        return `
+                            <div class="alert">
+                                <div class="log-timestamp">${timestamp}</div>
+                                <span class="log-message">${log}</span>
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    container.scrollTop = container.scrollHeight;
+                });
+        }
+
+        function clearLogs() {
+            fetch('/clear_policy_logs', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('policy-logs').innerHTML = '';
+                    showAlert('Policy logs cleared', 'success');
+                });
+        }
+
+        function exportLogs() {
+            fetch('/get_policy_logs')
+                .then(response => response.json())
+                .then(logs => {
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    const filename = `policy-logs-${timestamp}.txt`;
+                    const content = logs.join('\\n');
+                    
+                    const element = document.createElement('a');
+                    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
+                    element.setAttribute('download', filename);
+                    element.style.display = 'none';
+                    document.body.appendChild(element);
+                    element.click();
+                    document.body.removeChild(element);
+                });
+        }
+
+        function updateSecurityAlerts() {
+            // Fetch both regular security alerts and suspicious device alerts
+            Promise.all([
+                fetch('/get_security_alerts').then(r => r.json()),
+                fetch('/api/alerts/suspicious_devices').then(r => r.json())
+            ])
+                .then(([alerts, suspiciousData]) => {
+                    const container = document.querySelector('#security-alerts .alerts-list');
+                    const activeFilter = document.querySelector('.filter-btn.active')?.dataset.severity || 'all';
+                    
+                    // Combine alerts
+                    let allAlerts = alerts || [];
+                    
+                    // Add suspicious device alerts
+                    if (suspiciousData && suspiciousData.status === 'success' && suspiciousData.alerts) {
+                        suspiciousData.alerts.forEach(alert => {
+                            allAlerts.push({
+                                timestamp: alert.timestamp,
+                                message: `Suspicious device detected: ${alert.device_id} (${alert.reason})${alert.redirected ? ' - Redirected to honeypot' : ''}`,
+                                severity: alert.severity,
+                                device: alert.device_id,
+                                redirected: alert.redirected,
+                                activity_count: alert.honeypot_activity_count || 0
+                            });
+                        });
+                    }
+                    
+                    // Sort by timestamp (newest first)
+                    allAlerts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    
+                    const filteredAlerts = allAlerts.filter(alert => 
+                        activeFilter === 'all' || alert.severity === activeFilter
+                    );
+
+                    container.innerHTML = filteredAlerts.map(alert => {
+                        const severityClass = alert.severity || 'low';
+                        const isRedirected = alert.redirected || false;
+                        const activityCount = alert.activity_count || 0;
+                        
+                        return `
+                        <div class="alert ${severityClass} ${isRedirected ? 'redirected' : ''}">
+                            <div class="alert-header">
+                                <span class="alert-severity">${severityClass.toUpperCase()}</span>
+                                <span class="alert-timestamp">${new Date(alert.timestamp).toLocaleTimeString()}</span>
+                            </div>
+                            <div class="alert-message">${alert.message}</div>
+                            ${alert.device ? `<div class="alert-device">Device: ${alert.device}</div>` : ''}
+                            ${isRedirected ? `<div class="alert-honeypot">🔴 Redirected to honeypot${activityCount > 0 ? ` (${activityCount} activities logged)` : ''}</div>` : ''}
+                        </div>
+                    `;
+                    }).join('');
+                })
+                .catch(error => {
+                    console.error('Error updating security alerts:', error);
+                });
+        }
+
+        // Security Functions
+        function togglePolicy(policy) {
+            fetch(`/toggle_policy/${policy}`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    const btn = document.getElementById(`${policy.replace('_', '-')}-btn`);
+                    const statusIndicator = document.getElementById(`${policy.replace('_', '-')}-status`);
+                    
+                    if (btn) {
+                        btn.textContent = data.enabled ? 'Disable' : 'Enable';
+                        btn.className = `button ${data.enabled ? 'button-danger' : 'button-primary'}`;
+                    }
+                    
+                    if (statusIndicator) {
+                        statusIndicator.textContent = data.enabled ? 'Active' : 'Inactive';
+                        statusIndicator.className = `status-indicator ${data.enabled ? 'active' : ''}`;
+                    }
+
+                    showAlert(`${policy.replace('_', ' ')} ${data.enabled ? 'enabled' : 'disabled'}`, 'success');
+                    updatePolicyLogs();
+                });
+        }
+
+        // ML Engine Functions
+        let mlMonitoringActive = true;
+        let currentFilter = 'all';
+        
+        function initializeML() {
+            const statusDot = document.getElementById('ml-status-dot');
+            const statusText = document.getElementById('ml-status-text');
+            const statusSubtitle = document.getElementById('ml-status-subtitle');
+            
+            statusDot.className = 'status-dot-large';
+            statusText.textContent = 'Initializing...';
+            statusSubtitle.textContent = 'Loading ML model and starting monitoring';
+
+            fetch('/ml/initialize')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showAlert('ML Engine initialized successfully', 'success');
+                        statusDot.className = 'status-dot-large active';
+                        statusText.textContent = 'Active - Monitoring';
+                        statusSubtitle.textContent = 'ML model loaded and monitoring network traffic';
+                        mlMonitoringActive = true;
+                        updateMLMetrics();
+                        startMLUpdates();
+                    } else {
+                        showAlert('Failed to initialize ML Engine', 'danger');
+                        statusDot.className = 'status-dot-large error';
+                        statusText.textContent = 'Initialization Failed';
+                        statusSubtitle.textContent = 'Check logs for error details';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error initializing ML engine:', error);
+                    showAlert('Failed to initialize ML Engine', 'danger');
+                    statusDot.className = 'status-dot-large error';
+                    statusText.textContent = 'Connection Error';
+                    statusSubtitle.textContent = 'Unable to connect to ML engine';
+                });
+        }
+
+        function updateMLMetrics() {
+            fetch('/ml/status?t=' + Date.now()) // Cache busting
+                .then(response => response.json())
+                .then(data => {
+                    console.log('ML Status Data:', data); // Debug log
+                    
+                    // Update status indicator
+                    const statusDot = document.getElementById('ml-status-dot');
+                    const statusText = document.getElementById('ml-status-text');
+                    const statusSubtitle = document.getElementById('ml-status-subtitle');
+                    
+                    if (statusDot && statusText && statusSubtitle) {
+                        if (data.status === 'active') {
+                            statusDot.className = 'status-dot-large active';
+                            statusText.textContent = 'Active - Monitoring';
+                            statusSubtitle.textContent = `Processing ${data.statistics?.total_packets || 0} packets`;
+                        } else if (data.status === 'error') {
+                            statusDot.className = 'status-dot-large error';
+                            statusText.textContent = 'Error - Check Logs';
+                            statusSubtitle.textContent = 'ML engine encountered an error';
+                        } else {
+                            statusDot.className = 'status-dot-large';
+                            statusText.textContent = 'Initializing...';
+                            statusSubtitle.textContent = 'Loading ML model and starting monitoring';
+                        }
+                    }
+
+                    // Update statistics
+                    if (data.statistics) {
+                        const stats = data.statistics;
+                        console.log('Updating ML stats:', stats); // Debug log
+                        
+                        // Update main stats with null checks
+                        const totalPacketsEl = document.getElementById('total-packets');
+                        const attackPacketsEl = document.getElementById('attack-packets');
+                        const attackRateEl = document.getElementById('attack-rate');
+                        const modelConfidenceEl = document.getElementById('model-confidence');
+                        
+                        if (totalPacketsEl) totalPacketsEl.textContent = stats.total_packets || 0;
+                        if (attackPacketsEl) attackPacketsEl.textContent = stats.attack_packets || 0;
+                        if (attackRateEl) attackRateEl.textContent = `${(stats.attack_rate || 0).toFixed(1)}%`;
+                        if (modelConfidenceEl) modelConfidenceEl.textContent = `${(stats.detection_accuracy || 0).toFixed(1)}%`;
+                        
+                        // Update system metrics with null checks
+                        const mlUptimeEl = document.getElementById('ml-uptime');
+                        const modelStatusEl = document.getElementById('model-status');
+                        const lastHealthCheckEl = document.getElementById('last-health-check');
+                        const detectionAccuracyEl = document.getElementById('detection-accuracy');
+                        
+                        if (mlUptimeEl) mlUptimeEl.textContent = `${Math.floor((stats.uptime || 0) / 60)}m`;
+                        if (modelStatusEl) modelStatusEl.textContent = stats.model_status || 'Unknown';
+                        if (lastHealthCheckEl) lastHealthCheckEl.textContent = stats.last_health_check ? 
+                            new Date(stats.last_health_check).toLocaleTimeString() : '--';
+                        if (detectionAccuracyEl) detectionAccuracyEl.textContent = `${(stats.detection_accuracy || 0).toFixed(1)}%`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching ML metrics:', error);
+                    const statusDot = document.getElementById('ml-status-dot');
+                    const statusText = document.getElementById('ml-status-text');
+                    const statusSubtitle = document.getElementById('ml-status-subtitle');
+                    if (statusDot && statusText && statusSubtitle) {
+                        statusDot.className = 'status-dot-large error';
+                        statusText.textContent = 'Connection Error';
+                        statusSubtitle.textContent = 'Unable to fetch ML engine data';
+                    }
+                });
+        }
+
+        function updateMLDetections(isRetry = false) {
+            if (!isRetry) {
+                mlDetectionRetryCount = 0;
+            }
+
+            fetch('/ml/detections', {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                mlDetectionRetryCount = 0;
+                const container = document.getElementById('ml-detections');
+
+                if (!container) {
+                    console.warn('ML detections container not found');
+                    return;
+                }
+
+                const detections = Array.isArray(data) ? data : (data && data.detections) ? data.detections : [];
+                
+                // Update detection count
+                document.getElementById('detection-count').textContent = detections.length;
+
+                if (!detections || detections.length === 0) {
+                    container.innerHTML = `
+                        <div class="detection-item normal">
+                            <div class="detection-icon">✅</div>
+                            <div class="detection-content">
+                                <div class="detection-header-row">
+                                    <span class="detection-type">No Threats Detected</span>
+                                </div>
+                                <div class="detection-details">
+                                    <span>All network traffic appears normal</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    // Filter detections based on current filter
+                    let filteredDetections = detections;
+                    if (currentFilter === 'attacks') {
+                        filteredDetections = detections.filter(d => d.is_attack);
+                    } else if (currentFilter === 'normal') {
+                        filteredDetections = detections.filter(d => !d.is_attack);
+                    }
+
+                    // Show last 15 detections in reverse order
+                    const recentDetections = filteredDetections.slice(-15).reverse();
+                    
+                    container.innerHTML = recentDetections.map(detection => {
+                        const isAttack = detection.is_attack;
+                        const icon = isAttack ? '🚨' : '✅';
+                        const type = detection.attack_type || 'Normal Traffic';
+                        const confidence = Number(detection.confidence) * 100;
+                        const timestamp = detection.timestamp ? new Date(detection.timestamp).toLocaleTimeString() : '';
+                        const device = detection.device_id || 'Unknown Device';
+                        
+                        return `
+                            <div class="detection-item ${isAttack ? 'attack' : 'normal'}">
+                                <div class="detection-icon">${icon}</div>
+                                <div class="detection-content">
+                                    <div class="detection-header-row">
+                                        <span class="detection-type">${type}</span>
+                                        <span class="detection-timestamp">${timestamp}</span>
+                                    </div>
+                                    <div class="detection-details">
+                                        <div class="detection-confidence">
+                                            <span>Confidence:</span>
+                                            <div class="confidence-bar">
+                                                <div class="confidence-fill" style="width: ${confidence}%"></div>
+                                            </div>
+                                            <span>${confidence.toFixed(1)}%</span>
+                                        </div>
+                                        <div class="detection-device">Device: ${device}</div>
+                                        ${isAttack ? `
+                                            <div class="attack-details">
+                                                <strong>⚠️ Attack Details:</strong>
+                                                <ul style="margin: 0.5rem 0; padding-left: 1rem;">
+                                                    <li>Attack Type: ${type}</li>
+                                                    <li>Confidence Level: ${confidence.toFixed(1)}%</li>
+                                                    <li>Source Device: ${device}</li>
+                                                    <li>Detection Time: ${timestamp}</li>
+                                                    <li>Status: <span style="color: #f44336;">THREAT DETECTED</span></li>
+                                                </ul>
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching ML detections:', error);
+                const container = document.getElementById('ml-detections');
+                if (!container) return;
+
+                if (mlDetectionRetryCount < MAX_ML_RETRIES) {
+                    mlDetectionRetryCount++;
+                    console.log(`Retrying ML detection update (${mlDetectionRetryCount}/${MAX_ML_RETRIES})...`);
+                    setTimeout(() => updateMLDetections(true), 2000 * mlDetectionRetryCount);
+                    container.innerHTML = `
+                        <div class="detection-item normal">
+                            <div class="detection-icon">🔄</div>
+                            <div class="detection-content">
+                                <div class="detection-header-row">
+                                    <span class="detection-type">Reconnecting to ML Engine...</span>
+                                </div>
+                                <div class="detection-details">
+                                    <span>Retry ${mlDetectionRetryCount}/${MAX_ML_RETRIES}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = `
+                        <div class="detection-item attack">
+                            <div class="detection-icon">❌</div>
+                            <div class="detection-content">
+                                <div class="detection-header-row">
+                                    <span class="detection-type">ML Engine Connection Error</span>
+                                </div>
+                                <div class="detection-details">
+                                    <span>Unable to fetch detection data. Please check if the ML engine is running.</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+        }
+
+        function toggleMLMonitoring() {
+            mlMonitoringActive = !mlMonitoringActive;
+            const button = document.getElementById('ml-monitoring-toggle');
+            const statusDot = document.getElementById('ml-status-dot');
+            const statusText = document.getElementById('ml-status-text');
+            const statusSubtitle = document.getElementById('ml-status-subtitle');
+
+            if (mlMonitoringActive) {
+                button.innerHTML = '<span class="button-icon">⏸️</span>Pause Monitoring';
+                statusDot.className = 'status-dot-large active';
+                statusText.textContent = 'Active - Monitoring';
+                statusSubtitle.textContent = 'ML model loaded and monitoring network traffic';
+                startMLUpdates();
+            } else {
+                button.innerHTML = '<span class="button-icon">▶️</span>Resume Monitoring';
+                statusDot.className = 'status-dot-large';
+                statusText.textContent = 'Paused';
+                statusSubtitle.textContent = 'Monitoring paused by user';
+                stopMLUpdates();
+            }
+        }
+
+        // Initialize detection filters
+        function initDetectionFilters() {
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentFilter = btn.dataset.filter;
+                    updateMLDetections();
+                });
+            });
+        }
+
+        let mlUpdateInterval;
+
+        function startMLUpdates() {
+            // Initial updates
+            updateMLMetrics();
+            updateMLDetections();
+
+            // Set up periodic updates
+            mlUpdateInterval = setInterval(() => {
+                if (mlMonitoringActive && document.getElementById('ml-engine').classList.contains('active')) {
+                    updateMLMetrics();
+                    updateMLDetections();
+                }
+            }, 5000); // Update every 5 seconds
+        }
+
+        function stopMLUpdates() {
+            if (mlUpdateInterval) {
+                clearInterval(mlUpdateInterval);
+            }
+        }
+
+        function updateAnalytics() {
+            // Update network performance metrics
+            fetch('/api/network/statistics')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success' && data.statistics) {
+                        const stats = data.statistics;
+                        const network = stats.network || {};
+                        const mlEngine = stats.ml_engine || {};
+                        
+                        const totalPacketsEl = document.getElementById('analytics-total-packets');
+                        const packetsPerMinEl = document.getElementById('analytics-packets-per-min');
+                        const onlineDevicesEl = document.getElementById('analytics-online-devices');
+                        
+                        if (totalPacketsEl) totalPacketsEl.textContent = mlEngine.total_packets || network.total_network_packets || 0;
+                        
+                        // Calculate total packets per minute from device stats
+                        const devices = stats.devices || {};
+                        let totalPacketsPerMin = 0;
+                        Object.values(devices).forEach(device => {
+                            totalPacketsPerMin += device.packets_per_minute || 0;
+                        });
+                        if (packetsPerMinEl) packetsPerMinEl.textContent = totalPacketsPerMin;
+                        if (onlineDevicesEl) onlineDevicesEl.textContent = network.online_devices || 0;
+                    }
+                })
+                .catch(() => {});
+            
+            // Update system metrics
+            fetch('/get_health_metrics')
+                .then(response => response.json())
+                .then(data => {
+                    const devices = Object.values(data);
+                    if (devices.length > 0) {
+                        const onlineDevices = devices.filter(d => d.online === true || d.status === 'online').length;
+                        const healthPercentage = (onlineDevices / devices.length) * 100;
+                        const systemHealthEl = document.getElementById('analytics-system-health');
+                        if (systemHealthEl) systemHealthEl.textContent = healthPercentage.toFixed(0) + '%';
+                    }
+                })
+                .catch(() => {});
+            
+            // Update ML engine status
+            fetch('/ml/status')
+                .then(response => response.json())
+                .then(data => {
+                    const mlStatusEl = document.getElementById('analytics-ml-status');
+                    if (mlStatusEl) {
+                        mlStatusEl.textContent = data.status === 'active' ? 'Active' : 'Inactive';
+                    }
+                })
+                .catch(() => {});
+            
+            // Update honeypot status
+            fetch('/api/honeypot/redirected_devices')
+                .then(response => response.json())
+                .then(data => {
+                    const honeypotStatusEl = document.getElementById('analytics-honeypot-status');
+                    if (honeypotStatusEl) {
+                        honeypotStatusEl.textContent = data.container_running ? 'Running' : 'Stopped';
+                    }
+                })
+                .catch(() => {});
+            
+            // Update active alerts
+            fetch('/api/alerts/suspicious_devices')
+                .then(response => response.json())
+                .then(data => {
+                    const activeAlertsEl = document.getElementById('analytics-active-alerts');
+                    if (activeAlertsEl && data.status === 'success') {
+                        activeAlertsEl.textContent = data.alerts ? data.alerts.length : 0;
+                    }
+                })
+                .catch(() => {});
+            
+            // Update traffic analysis
+            fetch('/api/network/statistics')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success' && data.statistics) {
+                        const devices = data.statistics.devices || {};
+                        const trafficAnalysisEl = document.getElementById('traffic-analysis');
+                        if (trafficAnalysisEl) {
+                            const deviceList = Object.entries(devices).map(([deviceId, stats]) => {
+                                return `
+                                    <div style="padding: 0.75rem; border-bottom: 1px solid var(--border-color);">
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <div>
+                                                <strong>${deviceId}</strong>
+                                                <div style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                                                    ${stats.packets_per_minute || 0} packets/min | 
+                                                    ${stats.is_online ? 'Online' : 'Offline'}
+                                                </div>
+                                            </div>
+                                            <div style="text-align: right;">
+                                                <div style="font-size: 1.25rem; font-weight: 600; color: var(--accent-color);">
+                                                    ${stats.total_packets || 0}
+                                                </div>
+                                                <div style="font-size: 0.75rem; color: var(--text-secondary);">total packets</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('');
+                            
+                            if (deviceList) {
+                                trafficAnalysisEl.innerHTML = deviceList;
+                            } else {
+                                trafficAnalysisEl.innerHTML = '<div class="loading-indicator">No traffic data available</div>';
+                            }
+                        }
+                    }
+                })
+                .catch(() => {});
+        }
+        
+
+        // Trust Scores Update Functions
+        function updateTrustScores() {
+            fetch('/api/trust_scores')
+                .then(response => response.json())
+                .then(data => {
+                    const scores = data.scores || {};
+                    const scoresList = Object.entries(scores);
+                    
+                    // Calculate average
+                    const avgScore = scoresList.length > 0 
+                        ? Math.round(scoresList.reduce((sum, [_, score]) => sum + score, 0) / scoresList.length)
+                        : 0;
+                    document.getElementById('avg-trust-score').textContent = avgScore;
+                    
+                    // Count trusted and suspicious devices
+                    const trusted = scoresList.filter(([_, score]) => score >= 70).length;
+                    const suspicious = scoresList.filter(([_, score]) => score < 50).length;
+                    document.getElementById('trusted-devices-count').textContent = trusted;
+                    document.getElementById('suspicious-devices-count').textContent = suspicious;
+                    
+                    // Update table
+                    const tbody = document.getElementById('trust-scores-list');
+                    tbody.innerHTML = scoresList.map(([deviceId, score]) => {
+                        let level = 'trusted';
+                        let levelColor = '#4caf50';
+                        if (score < 30) {
+                            level = 'untrusted';
+                            levelColor = '#f44336';
+                        } else if (score < 50) {
+                            level = 'suspicious';
+                            levelColor = '#ff9800';
+                        } else if (score < 70) {
+                            level = 'monitored';
+                            levelColor = '#ffc107';
+                        }
+                        
+                        return `
+                            <tr>
+                                <td>${deviceId}</td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div style="width: ${score}%; background: ${levelColor};"></div>
+                                    </div>
+                                    <span>${score}/100</span>
+                                </td>
+                                <td><span style="color: ${levelColor};">${level.toUpperCase()}</span></td>
+                                <td>Active</td>
+                                <td>${new Date().toLocaleTimeString()}</td>
+                            </tr>
+                        `;
+                    }).join('');
+                })
+                .catch(error => {
+                    console.error('Error fetching trust scores:', error);
+                });
+        }
+
+        // Honeypot Update Functions
+        function updateHoneypotStatus() {
+            fetch('/api/honeypot/status')
+                .then(response => response.json())
+                .then(data => {
+                    // Check both 'status' and 'running' fields
+                    const status = data.status || (data.running ? 'running' : 'stopped');
+                    const running = status === 'running' || data.running === true;
+                    
+                    const statusEl = document.getElementById('honeypot-status');
+                    const labelEl = document.getElementById('honeypot-status-label');
+                    
+                    if (statusEl) {
+                        statusEl.textContent = running ? 'Running' : 'Stopped';
+                        statusEl.style.color = running ? '#4caf50' : '#f44336';
+                    }
+                    
+                    if (labelEl) {
+                        labelEl.textContent = running ? 'Container Active' : 'Container Inactive';
+                    }
+                    
+                    // Update threats
+                    const threats = data.threats || [];
+                    document.getElementById('threats-captured').textContent = threats.length;
+                    
+                    // Update blocked IPs
+                    const blockedIPs = data.blocked_ips || [];
+                    document.getElementById('blocked-ips-count').textContent = blockedIPs.length;
+                    
+                    // Update recent threats list
+                    const threatsList = document.getElementById('recent-threats-list');
+                    if (threats.length === 0) {
+                        threatsList.innerHTML = '<div class="alert">No threats captured</div>';
+                    } else {
+                        threatsList.innerHTML = threats.slice(-10).reverse().map(threat => `
+                            <div class="alert ${threat.severity || 'medium'}">
+                                <strong>${threat.event_type || 'Unknown'}</strong><br>
+                                <small>IP: ${threat.source_ip || 'Unknown'}</small><br>
+                                <small>${threat.timestamp || ''}</small>
+                            </div>
+                        `).join('');
+                    }
+                    
+                    // Update mitigation rules
+                    const rules = data.mitigation_rules || [];
+                    const rulesList = document.getElementById('mitigation-rules-list');
+                    if (rules.length === 0) {
+                        rulesList.innerHTML = '<tr><td colspan="4">No mitigation rules generated</td></tr>';
+                    } else {
+                        rulesList.innerHTML = rules.slice(-20).reverse().map(rule => `
+                            <tr>
+                                <td>${rule.match_fields?.ipv4_src || 'N/A'}</td>
+                                <td>${rule.type || 'unknown'}</td>
+                                <td>${rule.reason || 'N/A'}</td>
+                                <td>${rule.generated_at || 'N/A'}</td>
+                            </tr>
+                        `).join('');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching honeypot status:', error);
+                    // On error, try to check via redirected_devices endpoint as fallback
+                    fetch('/api/honeypot/redirected_devices')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.container_running !== undefined) {
+                                const running = data.container_running === true;
+                                const statusEl = document.getElementById('honeypot-status');
+                                const labelEl = document.getElementById('honeypot-status-label');
+                                
+                                if (statusEl) {
+                                    statusEl.textContent = running ? 'Running' : 'Stopped';
+                                    statusEl.style.color = running ? '#4caf50' : '#f44336';
+                                }
+                                
+                                if (labelEl) {
+                                    labelEl.textContent = running ? 'Container Active' : 'Container Inactive';
+                                }
+                            }
+                        })
+                        .catch(() => {});
+                });
+        }
+
+        // Certificates Update Functions
+        function updateCertificates() {
+            fetch('/api/certificates')
+                .then(response => response.json())
+                .then(data => {
+                    const certificates = data.certificates || [];
+                    document.getElementById('total-certificates').textContent = certificates.length;
+                    
+                    const valid = certificates.filter(c => c.status === 'valid').length;
+                    const expired = certificates.filter(c => c.status === 'expired').length;
+                    document.getElementById('valid-certificates').textContent = valid;
+                    document.getElementById('expired-certificates').textContent = expired;
+                    
+                    // Update certificates table
+                    const tbody = document.getElementById('certificates-list');
+                    if (certificates.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5">No certificates issued</td></tr>';
+                    } else {
+                        tbody.innerHTML = certificates.map(cert => {
+                            const statusColor = cert.status === 'valid' ? '#4caf50' : '#f44336';
+                            return `
+                                <tr>
+                                    <td>${cert.device_id || 'N/A'}</td>
+                                    <td>${cert.mac_address || 'N/A'}</td>
+                                    <td><span style="color: ${statusColor};">${cert.status || 'unknown'}</span></td>
+                                    <td>${cert.valid_until || 'N/A'}</td>
+                                    <td>
+                                        <button class="btn-small" onclick="revokeCertificate('${cert.device_id}')">Revoke</button>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching certificates:', error);
+                });
+        }
+
+        function revokeCertificate(deviceId) {
+            if (confirm(`Revoke certificate for ${deviceId}?`)) {
+                fetch(`/api/certificates/${deviceId}/revoke`, { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showAlert(`Certificate revoked for ${deviceId}`, 'success');
+                            updateCertificates();
+                        } else {
+                            showAlert(`Failed to revoke certificate: ${data.error}`, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        showAlert('Error revoking certificate', 'error');
+                    });
+            }
+        }
+
+        function showAlert(message, type) {
+            const alert = document.createElement('div');
+            alert.className = `alert ${type}`;
+            alert.textContent = message;
+            document.body.appendChild(alert);
+            setTimeout(() => {
+                alert.style.opacity = '0';
+                setTimeout(() => alert.remove(), 300);
+            }, 3000);
+        }
+
+        // Initialize data updates
+        updateData();
+        setInterval(updateData, 5000);
+
+        // Handle mobile responsiveness
+        window.addEventListener('resize', () => {
+            if (network) {
+                network.fit();
+            }
+        });
+
+        // Security UI initialization: filters, search box and loading initial policy states
+        function debounce(fn, wait) {
+            let t;
+            return function(...args) {
+                clearTimeout(t);
+                t = setTimeout(() => fn.apply(this, args), wait);
+            };
+        }
+
+        function loadPolicies() {
+            fetch('/get_policies')
+                .then(resp => resp.json())
+                .then(policies => {
+                    Object.keys(policies).forEach(policy => {
+                        const btn = document.getElementById(`${policy.replace('_', '-')}-btn`);
+                        const status = document.getElementById(`${policy.replace('_', '-')}-status`);
+                        const enabled = !!policies[policy];
+                        if (btn) {
+                            btn.textContent = enabled ? 'Disable' : 'Enable';
+                            btn.className = `button ${enabled ? 'button-danger' : 'button-primary'}`;
+                        }
+                        if (status) {
+                            status.textContent = enabled ? 'Active' : 'Inactive';
+                            status.className = `status-indicator ${enabled ? 'active' : ''}`;
+                        }
+                    });
+                })
+                .catch(() => {
+                    console.warn('Unable to load policies');
+                });
+        }
+
+        function initSecurityUI() {
+            // filter buttons
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    updateSecurityAlerts();
+                });
+            });
+
+            // search box
+            const searchInput = document.getElementById('log-search');
+            if (searchInput) {
+                searchInput.addEventListener('input', debounce(() => {
+                    updatePolicyLogs();
+                }, 300));
+            }
+
+            // load initial policy states
+            loadPolicies();
+
+            // initial logs/alerts if security tab active
+            if (document.getElementById('security').classList.contains('active')) {
+                updatePolicyLogs();
+                updateSecurityAlerts();
+            }
+        }
+
+        // Device Approval Functions
+        function loadPendingDevices() {
+            fetch('/api/pending_devices')
+                .then(resp => resp.json())
+                .then(data => {
+                    const container = document.getElementById('pending-devices-container');
+                    if (data.status === 'error') {
+                        container.innerHTML = `<div class="loading-indicator">${data.message || 'Error loading pending devices'}</div>`;
+                        return;
+                    }
+                    
+                    const devices = data.devices || [];
+                    if (devices.length === 0) {
+                        container.innerHTML = '<div class="loading-indicator">No pending devices</div>';
+                        return;
+                    }
+                    
+                    let html = '<table class="device-table"><thead><tr><th>Device ID</th><th>MAC Address</th><th>Detected At</th><th>Actions</th></tr></thead><tbody>';
+                    devices.forEach(device => {
+                        const detectedAt = new Date(device.detected_at).toLocaleString();
+                        html += `
+                            <tr>
+                                <td>${device.device_id || 'N/A'}</td>
+                                <td>${device.mac_address}</td>
+                                <td>${detectedAt}</td>
+                                <td>
+                                    <button class="button button-primary" onclick="approveDevice('${device.mac_address}', '${device.device_id}')" style="margin-right: 0.5rem;">Approve</button>
+                                    <button class="button button-danger" onclick="rejectDevice('${device.mac_address}')">Reject</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                    html += '</tbody></table>';
+                    container.innerHTML = html;
+                })
+                .catch(err => {
+                    console.error('Error loading pending devices:', err);
+                    document.getElementById('pending-devices-container').innerHTML = 
+                        '<div class="loading-indicator">Error loading pending devices</div>';
+                });
+        }
+
+        function loadFailedTokenRequests() {
+            fetch('/api/failed_token_requests')
+                .then(resp => resp.json())
+                .then(data => {
+                    const container = document.getElementById('failed-token-requests-container');
+                    if (data.status === 'error') {
+                        container.innerHTML = `<div class="loading-indicator">${data.message || 'Error loading failed token requests'}</div>`;
+                        return;
+                    }
+                    
+                    if (!data.devices || data.devices.length === 0) {
+                        container.innerHTML = '<div class="loading-indicator">No devices requesting authorization. All devices are authorized or none have attempted to connect yet.</div>';
+                        return;
+                    }
+                    
+                    let html = '<table class="data-table"><thead><tr><th>Device ID</th><th>MAC Address</th><th>Requests</th><th>Last Request</th><th>Action</th></tr></thead><tbody>';
+                    
+                    data.devices.forEach(device => {
+                        const timeAgo = device.time_since_last < 60 ? `${device.time_since_last}s ago` : 
+                                       device.time_since_last < 3600 ? `${Math.floor(device.time_since_last / 60)}m ago` :
+                                       `${Math.floor(device.time_since_last / 3600)}h ago`;
+                        
+                        html += `
+                            <tr>
+                                <td><strong>${device.device_id}</strong></td>
+                                <td>${device.mac_address}</td>
+                                <td>${device.request_count}</td>
+                                <td>${timeAgo}</td>
+                                <td>
+                                    <button class="button button-primary" onclick="authorizeDevice('${device.device_id}', '${device.mac_address}')">Authorize</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += '</tbody></table>';
+                    container.innerHTML = html;
+                })
+                .catch(err => {
+                    console.error('Error loading failed token requests:', err);
+                    document.getElementById('failed-token-requests-container').innerHTML = 
+                        '<div class="loading-indicator">Error loading failed token requests</div>';
+                });
+        }
+
+        function authorizeDevice(deviceId, macAddress) {
+            if (!confirm(`Authorize device ${deviceId} (${macAddress})?\n\nThis will allow the device to request tokens and send data.`)) {
+                return;
+            }
+            
+            fetch('/api/authorize_device', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    device_id: deviceId,
+                    mac_address: macAddress !== 'Unknown' ? macAddress : undefined
+                })
+            })
+                .then(resp => resp.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert(`Device ${deviceId} authorized successfully!\n\nThe device can now request tokens and send data.`);
+                        loadFailedTokenRequests();
+                    } else {
+                        alert('Error: ' + (data.message || 'Failed to authorize device'));
+                    }
+                })
+                .catch(err => {
+                    console.error('Error authorizing device:', err);
+                    alert('Error authorizing device');
+                });
+        }
+
+        function approveDevice(macAddress, deviceId) {
+            if (!confirm(`Approve device ${deviceId} (${macAddress})?`)) {
+                return;
+            }
+            
+            fetch('/api/approve_device', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mac_address: macAddress })
+            })
+                .then(resp => resp.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert('Device approved and onboarded successfully!');
+                        loadPendingDevices();
+                        loadDeviceHistory();
+                    } else {
+                        alert('Error: ' + (data.message || 'Failed to approve device'));
+                    }
+                })
+                .catch(err => {
+                    console.error('Error approving device:', err);
+                    alert('Error approving device');
+                });
+        }
+
+        function rejectDevice(macAddress) {
+            if (!confirm(`Reject device with MAC ${macAddress}?`)) {
+                return;
+            }
+            
+            fetch('/api/reject_device', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mac_address: macAddress })
+            })
+                .then(resp => resp.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert('Device rejected');
+                        loadPendingDevices();
+                        loadDeviceHistory();
+                    } else {
+                        alert('Error: ' + (data.message || 'Failed to reject device'));
+                    }
+                })
+                .catch(err => {
+                    console.error('Error rejecting device:', err);
+                    alert('Error rejecting device');
+                });
+        }
+
+        function loadDeviceHistory() {
+            fetch('/api/device_history?limit=50')
+                .then(resp => resp.json())
+                .then(data => {
+                    const container = document.getElementById('device-history-container');
+                    if (data.status === 'error') {
+                        container.innerHTML = `<div class="loading-indicator">${data.message || 'Error loading history'}</div>`;
+                        return;
+                    }
+                    
+                    const history = data.history || [];
+                    if (history.length === 0) {
+                        container.innerHTML = '<div class="loading-indicator">No history available</div>';
+                        return;
+                    }
+                    
+                    let html = '<table class="device-table"><thead><tr><th>Timestamp</th><th>Device ID</th><th>MAC Address</th><th>Action</th><th>Notes</th></tr></thead><tbody>';
+                    history.forEach(entry => {
+                        const timestamp = new Date(entry.timestamp).toLocaleString();
+                        const actionClass = entry.action === 'approved' ? 'authorized' : 
+                                          entry.action === 'rejected' ? 'unauthorized' : '';
+                        html += `
+                            <tr>
+                                <td>${timestamp}</td>
+                                <td>${entry.device_id || 'N/A'}</td>
+                                <td>${entry.mac_address}</td>
+                                <td><span class="status-badge ${actionClass}">${entry.action}</span></td>
+                                <td>${entry.admin_notes || '-'}</td>
+                            </tr>
+                        `;
+                    });
+                    html += '</tbody></table>';
+                    container.innerHTML = html;
+                })
+                .catch(err => {
+                    console.error('Error loading device history:', err);
+                    document.getElementById('device-history-container').innerHTML = 
+                        '<div class="loading-indicator">Error loading history</div>';
+                });
+        }
+
+        // Auto-refresh pending devices when approval tab is active
+        let approvalRefreshInterval = null;
+        function startApprovalUpdates() {
+            if (approvalRefreshInterval) return;
+            loadPendingDevices();
+            loadDeviceHistory();
+            loadFailedTokenRequests();
+            approvalRefreshInterval = setInterval(() => {
+                if (document.getElementById('approval').classList.contains('active')) {
+                    loadPendingDevices();
+                    loadDeviceHistory();
+                    loadFailedTokenRequests();
+                }
+            }, 5000);
+        }
+
+        // Initialize UI once DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                if (typeof initTabNavigation === 'function') initTabNavigation();
+            } catch (e) {
+                console.error('Tab init error', e);
+            }
+            try {
+                if (typeof initSecurityUI === 'function') initSecurityUI();
+            } catch (e) {
+                console.error('Security UI init error', e);
+            }
+            try {
+                if (typeof initDetectionFilters === 'function') initDetectionFilters();
+            } catch (e) {
+                console.error('Detection filters init error', e);
+            }
+            // Start ML updates if ML tab is active
+            try {
+                if (typeof mlMonitoringActive !== 'undefined' && mlMonitoringActive) startMLUpdates();
+            } catch (e) {
+                // ignore
+            }
+            // Start approval updates
+            startApprovalUpdates();
+            
+            // Load approval data when tab is clicked
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    if (this.dataset.tab === 'approval') {
+                        loadPendingDevices();
+                        loadDeviceHistory();
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

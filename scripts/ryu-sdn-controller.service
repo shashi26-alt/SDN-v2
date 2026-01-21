@@ -1,0 +1,20 @@
+[Unit]
+Description=Ryu SDN Controller for Zero Trust Framework
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/IOT-project
+Environment="PATH=/home/pi/IOT-project/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/pi/IOT-project/venv/bin/ryu-manager --ofp-tcp-listen-port 6653 /home/pi/IOT-project/ryu_controller/sdn_policy_engine.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/pi/IOT-project/logs/ryu.log
+StandardError=append:/home/pi/IOT-project/logs/ryu.log
+
+[Install]
+WantedBy=multi-user.target
+
