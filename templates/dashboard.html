@@ -1611,6 +1611,8 @@
                     // Call appropriate update functions based on active tab
                     if (targetId === 'overview') {
                         updateOverviewStatistics();
+                    } else if (targetId === 'devices') {
+                        loadDevicesList();
                     } else if (targetId === 'security') {
                         updatePolicyLogs();
                         updateSecurityAlerts();
@@ -1757,6 +1759,11 @@
             // Update overview statistics if overview tab is active
             if (document.getElementById('overview').classList.contains('active')) {
                 updateOverviewStatistics();
+            }
+
+            // Update devices list if devices tab is active
+            if (document.getElementById('devices').classList.contains('active')) {
+                loadDevicesList();
             }
 
             // Update security section if active
@@ -1929,6 +1936,136 @@
                 const rateLimitEl = document.getElementById(`rate-limit-${deviceId}`);
                 if (packetsEl) packetsEl.textContent = info.packets;
                 if (rateLimitEl) rateLimitEl.textContent = info.rate_limit_status;
+            });
+        }
+
+        function loadDevicesList() {
+            // Load devices from topology and network statistics
+            Promise.all([
+                fetch('/get_topology_with_mac').then(r => r.json()),
+                fetch('/get_health_metrics').then(r => r.json()),
+                fetch('/api/network/statistics').then(r => r.json())
+            ]).then(([topologyData, healthData, networkStats]) => {
+                const tbody = document.getElementById('device-list');
+                if (!tbody) return;
+
+                let html = '';
+                const devices = topologyData.nodes || [];
+                
+                // Filter out gateway node
+                const deviceNodes = devices.filter(node => node.type !== 'gateway');
+                
+                // Update device statistics
+                const totalDevices = deviceNodes.length;
+                const onlineDevices = deviceNodes.filter(d => d.online === true || d.status === 'active').length;
+                const offlineDevices = totalDevices - onlineDevices;
+                const totalPackets = deviceNodes.reduce((sum, d) => sum + (d.packets || 0), 0);
+                
+                document.getElementById('devices-total-count').textContent = totalDevices;
+                document.getElementById('devices-online-count').textContent = onlineDevices;
+                document.getElementById('devices-total-packets').textContent = totalPackets;
+                
+                // Get network statistics for packets per minute
+                const stats = networkStats.statistics || {};
+                const deviceStats = stats.devices || {};
+                
+                // Build device rows
+                deviceNodes.forEach(device => {
+                    const deviceId = device.id;
+                    const isOnline = device.online === true || device.status === 'active';
+                    const statusClass = isOnline ? 'authorized' : 'unauthorized';
+                    const statusText = isOnline ? 'Online' : 'Offline';
+                    
+                    // Get authorization status (check if device is in authorized list or has valid token)
+                    const isAuthorized = healthData[deviceId] ? (healthData[deviceId].status === 'online' || healthData[deviceId].online) : false;
+                    const authClass = isAuthorized ? 'authorized' : 'unauthorized';
+                    const authText = isAuthorized ? 'Authorized' : 'Unauthorized';
+                    
+                    // Get packet counts
+                    const packets = device.packets || 0;
+                    const deviceStat = deviceStats[deviceId] || {};
+                    const packetsPerMin = deviceStat.packets_per_minute || 0;
+                    
+                    // Format last seen time
+                    let lastSeenText = 'Never';
+                    if (device.last_seen && device.last_seen > 0) {
+                        const lastSeenDate = new Date(device.last_seen * 1000);
+                        const now = new Date();
+                        const diffSeconds = Math.floor((now - lastSeenDate) / 1000);
+                        
+                        if (diffSeconds < 60) {
+                            lastSeenText = `${diffSeconds}s ago`;
+                        } else if (diffSeconds < 3600) {
+                            lastSeenText = `${Math.floor(diffSeconds / 60)}m ago`;
+                        } else {
+                            lastSeenText = lastSeenDate.toLocaleTimeString();
+                        }
+                    }
+                    
+                    html += `
+                        <tr>
+                            <td><strong>${deviceId}</strong></td>
+                            <td>
+                                <span class="status-badge ${statusClass}" id="status-${deviceId}">
+                                    ${statusText}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="status-badge ${authClass}">
+                                    ${authText}
+                                </span>
+                            </td>
+                            <td id="packets-${deviceId}">${packets}</td>
+                            <td id="packets-per-min-${deviceId}">${packetsPerMin}</td>
+                            <td id="last-seen-${deviceId}">${lastSeenText}</td>
+                            <td>
+                                <button class="button ${isAuthorized ? 'button-danger' : 'button-primary'}" 
+                                        onclick="toggleDeviceAuthorization('${deviceId}', ${!isAuthorized})">
+                                    ${isAuthorized ? 'Revoke' : 'Authorize'}
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                if (deviceNodes.length === 0) {
+                    html = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No devices found</td></tr>';
+                }
+                
+                tbody.innerHTML = html;
+            }).catch(err => {
+                console.error('Error loading devices list:', err);
+                const tbody = document.getElementById('device-list');
+                if (tbody) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--danger-color);">Error loading devices</td></tr>';
+                }
+            });
+        }
+
+        function toggleDeviceAuthorization(deviceId, authorize) {
+            const action = authorize ? 'authorize' : 'revoke';
+            fetch('/api/authorize_device', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    device_id: deviceId,
+                    action: action
+                })
+            }).then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Reload devices list after a short delay to ensure backend has updated
+                    setTimeout(() => {
+                        loadDevicesList();
+                    }, 100);
+                } else {
+                    alert('Failed to ' + action + ' device: ' + (data.message || 'Unknown error'));
+                }
+            }).catch(err => {
+                console.error('Error toggling device authorization:', err);
+                alert('Error updating device authorization');
             });
         }
 

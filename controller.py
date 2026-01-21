@@ -805,12 +805,13 @@ def get_failed_token_requests():
 @app.route('/api/authorize_device', methods=['POST'])
 def api_authorize_device():
     """
-    API endpoint to authorize a device
+    API endpoint to authorize or revoke a device
     
     Request JSON:
     {
         "device_id": "ESP32_5",
-        "mac_address": "AA:BB:CC:DD:EE:FF" (optional)
+        "mac_address": "AA:BB:CC:DD:EE:FF" (optional),
+        "action": "authorize" or "revoke" (optional, default: "authorize")
     }
     
     Returns:
@@ -827,32 +828,51 @@ def api_authorize_device():
                 'message': 'Missing device_id'
             }), 400
         
-        # Add to authorized devices
-        authorized_devices[device_id] = True
+        # Check if action is 'revoke'
+        action = data.get('action', 'authorize')
         
-        # Initialize device tracking structures
-        if device_id not in device_data:
-            device_data[device_id] = []
-        if device_id not in last_seen:
-            last_seen[device_id] = 0
-        if device_id not in packet_counts:
-            packet_counts[device_id] = []
-        
-        # Store MAC address if provided
-        if mac_address:
-            mac_addresses[device_id] = mac_address
-        
-        # Remove from failed requests if it was there
-        if device_id in failed_token_requests:
-            del failed_token_requests[device_id]
-        
-        app.logger.info(f"Device {device_id} manually authorized via API")
-        
-        return json.dumps({
-            'status': 'success',
-            'message': f'Device {device_id} authorized successfully',
-            'device_id': device_id
-        }), 200
+        if action == 'revoke':
+            # Revoke device authorization
+            authorized_devices[device_id] = False
+            
+            # Remove device tokens
+            if device_id in device_tokens:
+                del device_tokens[device_id]
+            
+            app.logger.info(f"Device {device_id} revoked via API")
+            
+            return json.dumps({
+                'status': 'success',
+                'message': f'Device {device_id} revoked successfully',
+                'device_id': device_id
+            }), 200
+        else:
+            # Authorize device
+            authorized_devices[device_id] = True
+            
+            # Initialize device tracking structures
+            if device_id not in device_data:
+                device_data[device_id] = []
+            if device_id not in last_seen:
+                last_seen[device_id] = time.time()
+            if device_id not in packet_counts:
+                packet_counts[device_id] = []
+            
+            # Store MAC address if provided
+            if mac_address:
+                mac_addresses[device_id] = mac_address
+            
+            # Remove from failed requests if it was there
+            if device_id in failed_token_requests:
+                del failed_token_requests[device_id]
+            
+            app.logger.info(f"Device {device_id} manually authorized via API")
+            
+            return json.dumps({
+                'status': 'success',
+                'message': f'Device {device_id} authorized successfully',
+                'device_id': device_id
+            }), 200
         
     except Exception as e:
         app.logger.error(f"Error authorizing device: {e}")
