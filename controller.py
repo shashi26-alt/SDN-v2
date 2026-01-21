@@ -911,13 +911,29 @@ def get_topology_with_mac():
         except Exception as e:
             app.logger.error(f"Error getting devices from database: {e}")
     
-    # Merge database devices with last_seen tracking
-    all_device_ids = set(list(last_seen.keys()) + list(devices_from_db.keys()))
+    # Merge database devices with last_seen tracking and authorized devices
+    # Include authorized devices so they appear in topology even before sending data
+    all_device_ids = set(list(last_seen.keys()) + list(devices_from_db.keys()) + list(authorized_devices.keys()))
     
     # Add ESP32 device nodes and edges to gateway
     for device_id in all_device_ids:
+        # Skip gateway (already added)
+        if device_id == "ESP32_Gateway":
+            continue
+            
         # Get last_seen time (from tracking or database)
         last_seen_time = last_seen.get(device_id, 0)
+        
+        # If device is authorized but not in last_seen, initialize it
+        if device_id in authorized_devices and device_id not in last_seen:
+            last_seen[device_id] = current_time  # Mark as just seen
+            last_seen_time = current_time
+            # Initialize other tracking structures if needed
+            if device_id not in device_data:
+                device_data[device_id] = []
+            if device_id not in packet_counts:
+                packet_counts[device_id] = []
+        
         if device_id in devices_from_db and devices_from_db[device_id].get('last_seen'):
             # Try to parse database timestamp if available
             try:
@@ -1075,8 +1091,31 @@ def approve_device():
         
         # If full service is available, use it
         if auto_onboarding_service:
+            # Get pending device info before approval
+            pending_device = manager.get_device_by_mac(mac_address)
+            if not pending_device:
+                return json.dumps({
+                    'status': 'error',
+                    'message': 'Device not found in pending list'
+                }), 400
+            
+            device_id = pending_device.get('device_id')
+            
+            # Approve and onboard
             result = auto_onboarding_service.approve_and_onboard(mac_address, admin_notes)
             if result.get('status') == 'success':
+                # Set up tracking structures so device appears in topology
+                authorized_devices[device_id] = True
+                if device_id not in device_data:
+                    device_data[device_id] = []
+                if device_id not in last_seen:
+                    last_seen[device_id] = time.time()
+                if device_id not in packet_counts:
+                    packet_counts[device_id] = []
+                if mac_address:
+                    mac_addresses[device_id] = mac_address
+                
+                app.logger.info(f"Device {device_id} ({mac_address}) approved and added to topology tracking")
                 return json.dumps(result), 200
             else:
                 return json.dumps(result), 400
