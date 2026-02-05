@@ -1033,8 +1033,8 @@ def get_topology_with_mac():
             "onboarded": device_id in devices_from_db
         })
         
-        # Only add edge if device is online/connected
-        if online and device_status != 'revoked':
+        # Only add edge if device is online/connected OR active
+        if (online or device_status == 'active') and device_status != 'revoked':
             topology["edges"].append({
                 "from": device_id,
                 "to": "ESP32_Gateway"
@@ -1341,13 +1341,16 @@ def remove_device():
             del device_tokens[device_id]
         
         # Remove MAC address mapping
-        mac_to_remove = None
-        for did, mac in mac_addresses.items():
-            if did == device_id:
-                mac_to_remove = did
-                break
-        if mac_to_remove:
-            del mac_addresses[mac_to_remove]
+        # Remove MAC address mapping (Key is device_id)
+        if device_id in mac_addresses:
+            del mac_addresses[device_id]
+        
+        # Also brute-force check values just in case (though keys should be IDs)
+        # This handles potential inconsistencies in mapping
+        mac_keys_to_remove = [k for k, v in mac_addresses.items() if k == device_id or v == device_id]
+        for k in mac_keys_to_remove:
+             if k in mac_addresses:
+                 del mac_addresses[k]
         
         app.logger.info(f"Device {device_id} permanently removed from system")
         

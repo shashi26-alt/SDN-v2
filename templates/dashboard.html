@@ -2169,7 +2169,7 @@
             // Enhanced topology processing: set group based on status and connection
             const nodes = data.nodes.map(node => {
                 // Check if device is connected (has an edge or is online/active)
-                const isOnline = node.online === true || node.status === 'active';
+                const isOnline = node.online === true || node.status === 'active' || node.status === 'online';
                 const hasEdge = Array.isArray(data.edges) && data.edges.some(edge =>
                     edge.from === node.id || edge.to === node.id
                 );
