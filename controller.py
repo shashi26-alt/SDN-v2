@@ -1368,6 +1368,49 @@ def remove_device():
             'message': str(e)
         }), 500
 
+@app.route('/finalize_onboarding', methods=['POST'])
+def finalize_onboarding_route():
+    """
+    Manually finalize device onboarding (Stop profiling, generate baseline & policy)
+    
+    Request JSON:
+    {
+        "device_id": "DEVICE_ID"
+    }
+    
+    Returns:
+        Finalization result
+    """
+    if not ONBOARDING_AVAILABLE or not onboarding:
+        return json.dumps({
+            'status': 'error',
+            'message': 'Device onboarding system not available'
+        }), 503
+    
+    try:
+        data = request.json
+        device_id = data.get('device_id')
+        
+        if not device_id:
+            return json.dumps({
+                'status': 'error',
+                'message': 'Missing device_id'
+            }), 400
+            
+        app.logger.info(f"Manual finalization requested for {device_id}")
+        
+        result = onboarding.finalize_onboarding(device_id)
+        
+        status_code = 200 if result.get('status') == 'success' else 400
+        return json.dumps(result), status_code
+        
+    except Exception as e:
+        app.logger.error(f"Error finalizing onboarding: {e}")
+        return json.dumps({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
 @app.route('/api/device_history', methods=['GET'])
 def get_device_history():
     """
