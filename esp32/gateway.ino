@@ -184,10 +184,25 @@ void loop()
             endpoint = "/get_token";
             Serial.println("[Gateway] 📝 Node requesting TOKEN");
         }
+        else if (requestHeaders.indexOf("POST /auth") >= 0)
+        {
+            endpoint = "/auth";
+            Serial.println("[Gateway] 🔐 Node authenticating SESSION");
+        }
         else if (requestHeaders.indexOf("POST /data") >= 0)
         {
             endpoint = "/data";
             Serial.println("[Gateway] 📊 Node sending DATA");
+        }
+        else if (requestHeaders.indexOf("POST /onboard") >= 0)
+        {
+            endpoint = "/onboard";
+            Serial.println("[Gateway] 🚀 Node requesting ONBOARDING");
+        }
+        else if (requestHeaders.indexOf("POST /finalize_onboarding") >= 0)
+        {
+            endpoint = "/finalize_onboarding";
+            Serial.println("[Gateway] ✅ Node finalizing ONBOARDING");
         }
         else
         {
