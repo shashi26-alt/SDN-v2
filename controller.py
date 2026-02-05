@@ -755,9 +755,98 @@ def get_data():
 def update_auth():
     device_id = request.form['device_id']
     action = request.form['action']
-    authorized_devices[device_id] = (action == 'authorize')
-    if action == 'revoke' and device_id in device_tokens:
-        device_tokens.pop(device_id)
+
+    # Handle revoke as before
+    if action == 'revoke':
+        authorized_devices[device_id] = False
+        if device_id in device_tokens:
+            device_tokens.pop(device_id)
+        return dashboard()
+
+    # Handle authorize: mark as authorized and, if possible, drive the
+    # pending/auto-onboarding workflow so this behaves like an admin approval.
+    if action == 'authorize':
+        authorized_devices[device_id] = True
+
+        # Initialize tracking structures so device shows up correctly
+        if device_id not in device_data:
+            device_data[device_id] = []
+        if device_id not in last_seen:
+            last_seen[device_id] = time.time()
+        if device_id not in packet_counts:
+            packet_counts[device_id] = []
+
+        # If we have a pending device entry with this device_id, try to approve
+        # and onboard it just like /api/approve_device does.
+        manager = get_pending_manager()
+        if manager:
+            try:
+                pending_device = None
+                all_devices = manager.get_all_devices()
+                for dev in all_devices:
+                    if dev.get('device_id') == device_id:
+                        pending_device = dev
+                        break
+
+                if pending_device:
+                    mac_address = pending_device.get('mac_address')
+
+                    # Prefer full auto-onboarding service if available
+                    if auto_onboarding_service:
+                        result = auto_onboarding_service.approve_and_onboard(
+                            mac_address,
+                            admin_notes=f"Approved via Devices tab for {device_id}"
+                        )
+                        if result.get('status') == 'success':
+                            # Ensure topology tracking is initialized
+                            if mac_address:
+                                mac_addresses[device_id] = mac_address
+                            app.logger.info(
+                                f"Device {device_id} ({mac_address}) approved via Devices tab and onboarded"
+                            )
+                        else:
+                            app.logger.warning(
+                                f"Devices tab approval for {device_id} failed in auto-onboarding service: "
+                                f"{result.get('message')}"
+                            )
+                    else:
+                        # Fallback: approve in pending DB and manually onboard if module is available
+                        if manager.approve_device(
+                            mac_address,
+                            admin_notes=f"Approved via Devices tab for {device_id}"
+                        ):
+                            if onboarding:
+                                try:
+                                    onboarding_result = onboarding.onboard_device(
+                                        device_id=device_id,
+                                        mac_address=mac_address,
+                                        device_type=pending_device.get('device_type'),
+                                        device_info=pending_device.get('device_info')
+                                    )
+                                    if onboarding_result.get('status') == 'success':
+                                        manager.mark_onboarded(mac_address)
+                                        if mac_address:
+                                            mac_addresses[device_id] = mac_address
+                                        app.logger.info(
+                                            f"Device {device_id} ({mac_address}) approved and onboarded "
+                                            f"via Devices tab (fallback path)"
+                                        )
+                                    else:
+                                        app.logger.warning(
+                                            f"Onboarding failed for {device_id} via Devices tab: "
+                                            f"{onboarding_result.get('message')}"
+                                        )
+                                except Exception as e:
+                                    app.logger.error(
+                                        f"Onboarding error for {device_id} via Devices tab: {e}"
+                                    )
+                        else:
+                            app.logger.warning(
+                                f"Failed to approve pending device {device_id} via Devices tab"
+                            )
+            except Exception as e:
+                app.logger.error(f"Error during Devices tab authorization for {device_id}: {e}")
+
     return dashboard()
 
 @app.route('/api/failed_token_requests', methods=['GET'])
