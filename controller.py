@@ -1335,6 +1335,38 @@ def get_device_history():
             'history': []
         }), 500
 
+@app.route('/api/device_history/clear', methods=['POST'])
+def clear_device_history():
+    """Clear device approval history"""
+    manager = get_pending_manager()
+    if not manager:
+        return json.dumps({
+            'status': 'error',
+            'message': 'Pending device manager not available'
+        }), 503
+    
+    try:
+        success = False
+        if auto_onboarding_service:
+            success = auto_onboarding_service.clear_device_history()
+        else:
+            success = manager.clear_device_history()
+            
+        if success:
+            return json.dumps({'status': 'success'}), 200
+        else:
+            return json.dumps({
+                'status': 'error',
+                'message': 'Failed to clear history'
+            }), 500
+            
+    except Exception as e:
+        app.logger.error(f"Error clearing device history: {e}")
+        return json.dumps({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
 @app.route('/get_health_metrics')
 def get_health_metrics():
     """Get real device health metrics based on actual device status"""

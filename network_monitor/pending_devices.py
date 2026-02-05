@@ -365,6 +365,29 @@ class PendingDeviceManager:
         except Exception as e:
             logger.error(f"Failed to get device history: {e}")
             return []
+
+    def clear_device_history(self) -> bool:
+        """
+        Clear all device approval history
+        
+        Returns:
+            True if cleared successfully
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('DELETE FROM device_history')
+            
+            conn.commit()
+            conn.close()
+            
+            logger.info("Device history cleared")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to clear device history: {e}")
+            return False
     
     def get_all_devices(self, status: str = None) -> List[Dict]:
         """

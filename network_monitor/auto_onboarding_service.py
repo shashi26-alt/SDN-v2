@@ -256,6 +256,10 @@ class AutoOnboardingService:
     def get_device_history(self, mac_address: str = None, limit: int = 100):
         """Get device approval history"""
         return self.pending_manager.get_device_history(mac_address, limit)
+
+    def clear_device_history(self) -> bool:
+        """Clear device approval history"""
+        return self.pending_manager.clear_device_history()
     
     def is_running(self) -> bool:
         """Check if service is running"""

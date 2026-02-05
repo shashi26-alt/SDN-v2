@@ -1628,7 +1628,11 @@
                 </div>
             </div>
             <div class="card" style="margin-top: 1rem;">
-                <h3>📜 Device Approval History</h3>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="margin-bottom: 0;">📜 Device Approval History</h3>
+                    <button class="button button-danger" onclick="clearDeviceHistory()"
+                        style="padding: 0.25rem 0.75rem; font-size: 0.875rem;">Clear History</button>
+                </div>
                 <div id="device-history-container" class="scroll-container">
                     <div class="loading-indicator">Loading history...</div>
                 </div>
@@ -3296,6 +3300,29 @@
                     console.error('Error loading device history:', err);
                     document.getElementById('device-history-container').innerHTML =
                         '<div class="loading-indicator">Error loading history</div>';
+                });
+        }
+
+        function clearDeviceHistory() {
+            if (!confirm('Are you sure you want to clear the entire device approval history? This cannot be undone.')) {
+                return;
+            }
+
+            fetch('/api/device_history/clear', {
+                method: 'POST'
+            })
+                .then(resp => resp.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert('Device history cleared successfully');
+                        loadDeviceHistory();
+                    } else {
+                        alert('Error: ' + (data.message || 'Failed to clear history'));
+                    }
+                })
+                .catch(err => {
+                    console.error('Error clearing history:', err);
+                    alert('Error clearing history');
                 });
         }
 
