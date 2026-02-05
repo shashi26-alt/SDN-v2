@@ -1217,6 +1217,10 @@
                                             {{ 'Revoke' if authorized else 'Authorize' }}
                                         </button>
                                     </form>
+                                    <button class="button button-danger" onclick="removeDevice('{{ device }}')"
+                                        style="margin-left: 0.5rem; background-color: #d32f2f;">
+                                        Delete
+                                    </button>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -1986,8 +1990,25 @@
             Object.entries(data).forEach(([deviceId, info]) => {
                 const packetsEl = document.getElementById(`packets-${deviceId}`);
                 const rateLimitEl = document.getElementById(`rate-limit-${deviceId}`);
+                const statusBadgeEl = document.getElementById(`status-${deviceId}`);
+
                 if (packetsEl) packetsEl.textContent = info.packets;
                 if (rateLimitEl) rateLimitEl.textContent = info.rate_limit_status;
+
+                if (statusBadgeEl) {
+                    const isOnline = info.online === true || info.status === 'active' || info.status === 'online';
+                    statusBadgeEl.className = `status-badge ${isOnline ? 'authorized' : 'unauthorized'}`;
+                    statusBadgeEl.textContent = isOnline ? 'Online' : 'Offline';
+                    if (isOnline) {
+                        statusBadgeEl.style.backgroundColor = 'rgba(16, 185, 129, 0.1)';
+                        statusBadgeEl.style.color = '#10b981';
+                        statusBadgeEl.style.borderColor = 'rgba(16, 185, 129, 0.2)';
+                    } else {
+                        statusBadgeEl.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+                        statusBadgeEl.style.color = '#ef4444';
+                        statusBadgeEl.style.borderColor = 'rgba(239, 68, 68, 0.2)';
+                    }
+                }
             });
         }
 
@@ -2024,12 +2045,19 @@
                 // Build device rows
                 deviceNodes.forEach(device => {
                     const deviceId = device.id;
-                    const isOnline = device.online === true || device.status === 'active';
+                    // Check availability from both topology and health data
+                    const isOnline = device.online === true || device.status === 'active' ||
+                        (healthData[deviceId] && (healthData[deviceId].online === true || healthData[deviceId].status === 'online'));
+
                     const statusClass = isOnline ? 'authorized' : 'unauthorized';
                     const statusText = isOnline ? 'Online' : 'Offline';
+                    const statusStyle = isOnline ?
+                        "background: rgba(16, 185, 129, 0.1); color: #10b981; border-color: rgba(16, 185, 129, 0.2);" :
+                        "background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: rgba(239, 68, 68, 0.2);";
 
-                    // Get authorization status (check if device is in authorized list or has valid token)
-                    const isAuthorized = healthData[deviceId] ? (healthData[deviceId].status === 'online' || healthData[deviceId].online) : false;
+                    // Get authorization status (check if device is in authorized list)
+                    // We need to check if 'authorized' field exists in device object or healthData
+                    const isAuthorized = device.authorized === true || (healthData[deviceId] && healthData[deviceId].authorized === true);
                     const authClass = isAuthorized ? 'authorized' : 'unauthorized';
                     const authText = isAuthorized ? 'Authorized' : 'Unauthorized';
 
@@ -2056,14 +2084,14 @@
 
                     // Certificate status
                     const hasCert = device.onboarded === true;
-                    const certClass = hasCert ? 'authorized' : 'unauthorized'; // Reuse green/red style
+                    const certClass = hasCert ? 'authorized' : 'unauthorized';
                     const certText = hasCert ? 'Verified' : 'None';
 
                     html += `
                         <tr>
                             <td><strong>${deviceId}</strong></td>
                             <td>
-                                <span class="status-badge ${statusClass}" id="status-${deviceId}">
+                                <span class="status-badge ${statusClass}" id="status-${deviceId}" style="${statusStyle}">
                                     ${statusText}
                                 </span>
                             </td>
@@ -2081,9 +2109,15 @@
                             <td id="packets-per-min-${deviceId}">${packetsPerMin}</td>
                             <td id="last-seen-${deviceId}">${lastSeenText}</td>
                             <td>
-                                <button class="button ${isAuthorized ? 'button-danger' : 'button-primary'}" 
-                                        onclick="toggleDeviceAuthorization('${deviceId}', ${!isAuthorized})">
-                                    ${isAuthorized ? 'Revoke' : 'Authorize'}
+                                <form method="POST" action="/update" style="display: inline;">
+                                    <input type="hidden" name="device_id" value="${deviceId}">
+                                    <input type="hidden" name="action" value="${isAuthorized ? 'revoke' : 'authorize'}">
+                                    <button type="submit" class="button ${isAuthorized ? 'button-danger' : 'button-primary'}">
+                                        ${isAuthorized ? 'Revoke' : 'Authorize'}
+                                    </button>
+                                </form>
+                                <button class="button button-danger" onclick="removeDevice('${deviceId}')" style="margin-left: 0.5rem; background-color: #d32f2f;">
+                                    Delete
                                 </button>
                             </td>
                         </tr>
@@ -3002,6 +3036,7 @@
                                     <td>${cert.valid_until || cert.expires || 'N/A'}</td>
                                     <td>
                                         <button class="button button-danger" onclick="revokeCertificate('${cert.device_id}')" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Revoke</button>
+                                        <button class="button button-danger" onclick="removeDevice('${cert.device_id}')" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; background-color: #d32f2f; margin-left: 0.25rem;">Delete</button>
                                     </td>
                                 </tr>
                             `;
@@ -3255,6 +3290,33 @@
                 .catch(err => {
                     console.error('Error approving device:', err);
                     alert('Error approving device');
+                });
+        }
+
+        function removeDevice(deviceId) {
+            if (!confirm(`Are you sure you want to PERMANENTLY DELETE device ${deviceId}?\n\nThis will remove all device data, certificates, and history. This action cannot be undone.`)) {
+                return;
+            }
+
+            fetch('/api/remove_device', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ device_id: deviceId })
+            })
+                .then(resp => resp.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert(`Device ${deviceId} permanently deleted.`);
+                        // Refresh all views
+                        updateData();
+                        loadPendingDevices();
+                    } else {
+                        alert('Error: ' + (data.message || 'Failed to remove device'));
+                    }
+                })
+                .catch(err => {
+                    console.error('Error removing device:', err);
+                    alert('Error removing device');
                 });
         }
 

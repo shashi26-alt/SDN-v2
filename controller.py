@@ -1439,6 +1439,50 @@ def clear_device_history():
             'message': str(e)
         }), 500
 
+@app.route('/api/certificates', methods=['GET'])
+def get_certificates():
+    """Get all device certificates"""
+    if not ONBOARDING_AVAILABLE or not onboarding:
+        return json.dumps({
+            'status': 'error',
+            'message': 'Device onboarding system not available'
+        }), 503
+
+    try:
+        devices = onboarding.identity_db.get_all_devices()
+        certificates = []
+        
+        for device in devices:
+            if device.get('certificate_path'):
+                # Determine status
+                status = 'valid'
+                if device.get('status') == 'revoked':
+                    status = 'revoked'
+                
+                # Check actual certificate validity if possible
+                valid_until = "N/A"
+                # TODO: Parse certificate for expiration date
+                
+                certificates.append({
+                    'device_id': device['device_id'],
+                    'mac_address': device['mac_address'],
+                    'status': status,
+                    'valid_until': valid_until,
+                    'certificate_path': device['certificate_path']
+                })
+        
+        return json.dumps({
+            'status': 'success',
+            'certificates': certificates
+        }), 200
+        
+    except Exception as e:
+        app.logger.error(f"Error getting certificates: {e}")
+        return json.dumps({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
 @app.route('/get_health_metrics')
 def get_health_metrics():
     """Get real device health metrics based on actual device status"""
