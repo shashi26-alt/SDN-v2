@@ -168,9 +168,9 @@ if ONBOARDING_AVAILABLE and onboarding:
                     packet_counts[device_id] = []
                     
                 count += 1
-        print(f"✅ Restored {count} authorized devices from persistent storage")
+        print(f" [OK] Restored {count} authorized devices from persistent storage")
     except Exception as e:
-        print(f"⚠️  Failed to hydrate authorized devices: {e}")
+        print(f" [WARN] Failed to hydrate authorized devices: {e}")
 
 # Initialize Auto-Onboarding Service
 auto_onboarding_service = None
@@ -184,16 +184,16 @@ if AUTO_ONBOARDING_AVAILABLE:
         pending_manager = auto_onboarding_service.pending_manager
         # Start the service
         auto_onboarding_service.start()
-        print("✅ Auto-onboarding service initialized and started")
+        print(" [OK] Auto-onboarding service initialized and started")
     except Exception as e:
-        print(f"⚠️  Failed to initialize auto-onboarding service: {e}")
+        print(f" [WARN] Failed to initialize auto-onboarding service: {e}")
         auto_onboarding_service = None
         if PENDING_MANAGER_AVAILABLE:
             try:
                 pending_manager = PendingDeviceManager()
-                print("ℹ️  Fallback pending device manager initialized")
+                print(" [INFO] Fallback pending device manager initialized")
             except Exception as pe:
-                print(f"⚠️  Failed to initialize fallback pending device manager: {pe}")
+                print(f" [WARN] Failed to initialize fallback pending device manager: {pe}")
                 pending_manager = None
         AUTO_ONBOARDING_AVAILABLE = False
 elif PENDING_MANAGER_AVAILABLE:
@@ -1906,7 +1906,6 @@ def start_ml_engine():
         
     global ml_engine, ml_monitoring_active
     try:
-    try:
         print(" [INFO] Initializing ML Security Engine...")
         ml_engine = initialize_ml_engine()
         if ml_engine and hasattr(ml_engine, 'is_loaded') and ml_engine.is_loaded:
@@ -2291,13 +2290,13 @@ if __name__ == '__main__':
     start_activity_count_updater()
     
     # Run the Flask app
-    print("🌐 Starting Flask Controller on http://0.0.0.0:5000")
+    print(" [INFO] Starting Flask Controller on http://0.0.0.0:5000")
     try:
         app.run(host='0.0.0.0', port=5000, use_reloader=False, debug=False, threaded=True)  # disable reloader to prevent duplicate ML engine initialization
     except KeyboardInterrupt:
-        print("\n🛑 Flask Controller stopped by user")
+        print("\n [INFO] Flask Controller stopped by user")
     except Exception as e:
-        print(f"❌ Flask Controller error: {e}")
+        print(f" [FAIL] Flask Controller error: {e}")
         import traceback
         traceback.print_exc()
         raise
