@@ -2961,29 +2961,47 @@
             fetch('/api/certificates')
                 .then(response => response.json())
                 .then(data => {
-                    const certificates = data.certificates || [];
-                    document.getElementById('total-certificates').textContent = certificates.length;
+                    if (data.status === 'error') {
+                        console.error('Error fetching certificates:', data.message);
+                        return;
+                    }
 
-                    const valid = certificates.filter(c => c.status === 'valid').length;
-                    const expired = certificates.filter(c => c.status === 'expired').length;
-                    document.getElementById('valid-certificates').textContent = valid;
-                    document.getElementById('expired-certificates').textContent = expired;
+                    const certificates = data.certificates || [];
+
+                    // Update overview stats with correct element IDs
+                    const totalEl = document.getElementById('certificates-total');
+                    const validEl = document.getElementById('certificates-valid');
+                    const expiringEl = document.getElementById('certificates-expiring');
+                    const expiredEl = document.getElementById('certificates-expired');
+
+                    if (totalEl) totalEl.textContent = certificates.length;
+
+                    const valid = certificates.filter(c => c.status === 'valid' || c.status === 'active').length;
+                    const expiring = certificates.filter(c => c.status === 'expiring').length;
+                    const expired = certificates.filter(c => c.status === 'expired' || c.status === 'revoked').length;
+
+                    if (validEl) validEl.textContent = valid;
+                    if (expiringEl) expiringEl.textContent = expiring;
+                    if (expiredEl) expiredEl.textContent = expired;
 
                     // Update certificates table
                     const tbody = document.getElementById('certificates-list');
+                    if (!tbody) return;
+
                     if (certificates.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="5">No certificates issued</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="5">No certificates issued yet. Approve devices to generate certificates.</td></tr>';
                     } else {
                         tbody.innerHTML = certificates.map(cert => {
-                            const statusColor = cert.status === 'valid' ? '#4caf50' : '#f44336';
+                            const statusColor = (cert.status === 'valid' || cert.status === 'active') ? '#4caf50' :
+                                cert.status === 'expiring' ? '#ff9800' : '#f44336';
                             return `
                                 <tr>
-                                    <td>${cert.device_id || 'N/A'}</td>
+                                    <td><strong>${cert.device_id || 'N/A'}</strong></td>
                                     <td>${cert.mac_address || 'N/A'}</td>
-                                    <td><span style="color: ${statusColor};">${cert.status || 'unknown'}</span></td>
-                                    <td>${cert.valid_until || 'N/A'}</td>
+                                    <td><span style="color: ${statusColor};">${(cert.status || 'unknown').toUpperCase()}</span></td>
+                                    <td>${cert.valid_until || cert.expires || 'N/A'}</td>
                                     <td>
-                                        <button class="btn-small" onclick="revokeCertificate('${cert.device_id}')">Revoke</button>
+                                        <button class="button button-danger" onclick="revokeCertificate('${cert.device_id}')" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Revoke</button>
                                     </td>
                                 </tr>
                             `;
@@ -2992,6 +3010,10 @@
                 })
                 .catch(error => {
                     console.error('Error fetching certificates:', error);
+                    const tbody = document.getElementById('certificates-list');
+                    if (tbody) {
+                        tbody.innerHTML = '<tr><td colspan="5">Error loading certificates. Please check if the certificate system is initialized.</td></tr>';
+                    }
                 });
         }
 
