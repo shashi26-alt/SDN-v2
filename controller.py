@@ -121,19 +121,19 @@ if ONBOARDING_AVAILABLE:
         certs_dir = os.path.join(os.path.dirname(__file__), 'certs')
         db_path = os.path.join(os.path.dirname(__file__), 'identity.db')
         onboarding = DeviceOnboarding(certs_dir=certs_dir, db_path=db_path)
-        print("✅ Device onboarding system initialized")
+        print(" [OK] Device onboarding system initialized")
     except Exception as e:
-        print(f"⚠️  Failed to initialize device onboarding: {e}")
+        print(f" [FAIL] Failed to initialize device onboarding: {e}")
         print("   System will use static device authorization")
         onboarding = None
         ONBOARDING_AVAILABLE = False
 else:
-    print("⚠️  Device onboarding not available - using static authorization")
+    print(" [WARN] Device onboarding not available - using static authorization")
 
 # Hydrate authorized_devices from database if available (Persistence Fix)
 if ONBOARDING_AVAILABLE and onboarding:
     try:
-        print("🔄 Hydrating authorized devices from database...")
+        print(" [INFO] Hydrating authorized devices from database...")
         stored_devices = onboarding.identity_db.get_all_devices()
         count = 0
         for device in stored_devices:
@@ -1339,6 +1339,14 @@ def remove_device():
             del packet_counts[device_id]
         if device_id in device_tokens:
             del device_tokens[device_id]
+            
+        # Remove from pending/approved list (IMPORTANT for preventing auto-reconnect)
+        pending_manager = get_pending_manager()
+        if pending_manager:
+            try:
+                pending_manager.remove_device(device_id)
+            except Exception as e:
+                app.logger.error(f"Error removing device from pending manager: {e}")
         
         # Remove MAC address mapping
         # Remove MAC address mapping (Key is device_id)
@@ -1898,19 +1906,20 @@ def start_ml_engine():
         
     global ml_engine, ml_monitoring_active
     try:
-        print("🚀 Initializing ML Security Engine...")
+    try:
+        print(" [INFO] Initializing ML Security Engine...")
         ml_engine = initialize_ml_engine()
         if ml_engine and hasattr(ml_engine, 'is_loaded') and ml_engine.is_loaded:
             ml_monitoring_active = True
             if hasattr(ml_engine, 'start_monitoring'):
                 ml_engine.start_monitoring()
-            print("✅ ML Security Engine initialized and monitoring started")
+            print(" [OK] ML Security Engine initialized and monitoring started")
             return True
         else:
-            print("⚠️  ML engine initialization skipped (using heuristic detection)")
+            print(" [WARN] ML engine initialization skipped (using heuristic detection)")
             return False
     except Exception as e:
-        print(f"⚠️  ML initialization failed: {str(e)}")
+        print(f" [FAIL] ML initialization failed: {str(e)}")
         print("   System will run with heuristic-based detection only")
         return False
 

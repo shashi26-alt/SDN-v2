@@ -426,3 +426,38 @@ class PendingDeviceManager:
             logger.error(f"Failed to get all devices: {e}")
             return []
 
+    def remove_device(self, device_id: str) -> bool:
+        """
+        Permanently remove a device from pending list
+        
+        Args:
+            device_id: Device identifier
+            
+        Returns:
+            True if removed successfully
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Delete from pending_devices
+            cursor.execute('DELETE FROM pending_devices WHERE device_id = ?', (device_id,))
+            rows_deleted = cursor.rowcount
+            
+            # Also clean up history for this device
+            cursor.execute('DELETE FROM device_history WHERE device_id = ?', (device_id,))
+            
+            conn.commit()
+            conn.close()
+            
+            if rows_deleted > 0:
+                logger.info(f"Device {device_id} removed from pending list")
+                return True
+            else:
+                logger.info(f"Device {device_id} not found in pending list during removal")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Failed to remove device from pending list: {e}")
+            return False
+
