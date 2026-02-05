@@ -531,6 +531,7 @@ def get_token():
                         return json.dumps({'error': 'Device rejected'}), 403
                     if pending_status in (pending_manager.STATUS_APPROVED, pending_manager.STATUS_ONBOARDED):
                         device_authorized = True
+                        authorized_devices[device_id] = True
                         app.logger.info(f"Device {device_id} authorized after approval (status={pending_status})")
             except Exception as e:
                 app.logger.error(f"Error checking pending device status: {e}")
