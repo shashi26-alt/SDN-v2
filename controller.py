@@ -130,6 +130,48 @@ if ONBOARDING_AVAILABLE:
 else:
     print("⚠️  Device onboarding not available - using static authorization")
 
+# Hydrate authorized_devices from database if available (Persistence Fix)
+if ONBOARDING_AVAILABLE and onboarding:
+    try:
+        print("🔄 Hydrating authorized devices from database...")
+        stored_devices = onboarding.identity_db.get_all_devices()
+        count = 0
+        for device in stored_devices:
+            # If device is active or has a valid certificate, authorized it
+            if device.get('status') == 'active' or device.get('certificate_path'):
+                device_id = device['device_id']
+                authorized_devices[device_id] = True
+                
+                # Restore MAC address
+                if device.get('mac_address'):
+                    mac_addresses[device_id] = device['mac_address']
+                
+                # Restore last_seen if available (to prevent immediate timeout)
+                if device.get('last_seen'):
+                    try:
+                        # Handle both string (ISO) and float/int timestamps
+                        ls_val = device['last_seen']
+                        if isinstance(ls_val, str):
+                            import datetime as dt_module
+                            # Naive parse just for restoration
+                            ls_time = time.mktime(dt_module.datetime.fromisoformat(ls_val.replace('Z', '+00:00')).timetuple())
+                            last_seen[device_id] = ls_time
+                        else:
+                            last_seen[device_id] = float(ls_val)
+                    except Exception:
+                        last_seen[device_id] = time.time()
+                
+                # Initialize data structures
+                if device_id not in device_data:
+                    device_data[device_id] = []
+                if device_id not in packet_counts:
+                    packet_counts[device_id] = []
+                    
+                count += 1
+        print(f"✅ Restored {count} authorized devices from persistent storage")
+    except Exception as e:
+        print(f"⚠️  Failed to hydrate authorized devices: {e}")
+
 # Initialize Auto-Onboarding Service
 auto_onboarding_service = None
 pending_manager = None
