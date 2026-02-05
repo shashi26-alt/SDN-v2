@@ -639,3 +639,46 @@ class IdentityDatabase:
             logger.error(f"Failed to load trust scores: {e}")
             return {}
 
+    def delete_device(self, device_id: str) -> bool:
+        """
+        Permanently delete a device and all related data from the database.
+        This allows the device to re-register as pending if it reconnects.
+        
+        Args:
+            device_id: Device identifier
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Delete from trust_score_history first (foreign key constraint)
+            cursor.execute('DELETE FROM trust_score_history WHERE device_id = ?', (device_id,))
+            
+            # Delete from behavioral_baselines
+            cursor.execute('DELETE FROM behavioral_baselines WHERE device_id = ?', (device_id,))
+            
+            # Delete from device_policies
+            cursor.execute('DELETE FROM device_policies WHERE device_id = ?', (device_id,))
+            
+            # Delete from devices table
+            cursor.execute('DELETE FROM devices WHERE device_id = ?', (device_id,))
+            
+            rows_deleted = cursor.rowcount
+            
+            conn.commit()
+            conn.close()
+            
+            if rows_deleted > 0:
+                logger.info(f"Device {device_id} permanently deleted from database")
+                return True
+            else:
+                logger.warning(f"Device {device_id} not found in database")
+                return False
+            
+        except Exception as e:
+            logger.error(f"Failed to delete device {device_id}: {e}")
+            return False
+

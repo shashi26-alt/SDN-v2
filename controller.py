@@ -1294,6 +1294,77 @@ def reject_device():
             'message': str(e)
         }), 500
 
+@app.route('/api/remove_device', methods=['POST'])
+def remove_device():
+    """
+    Permanently remove a device from the system.
+    This deletes all device data and allows the device to re-register as pending.
+    
+    Request JSON:
+    {
+        "device_id": "DEVICE_ID"
+    }
+    
+    Returns:
+        Removal result
+    """
+    try:
+        data = request.json
+        device_id = data.get('device_id')
+        
+        if not device_id:
+            return json.dumps({
+                'status': 'error',
+                'message': 'Missing device_id'
+            }), 400
+        
+        app.logger.info(f"Permanently removing device {device_id}...")
+        
+        # Remove from onboarding system (deletes DB records and certificates)
+        db_removed = False
+        if onboarding:
+            try:
+                db_removed = onboarding.remove_device(device_id)
+            except Exception as e:
+                app.logger.error(f"Onboarding removal error for {device_id}: {e}")
+        
+        # Clear from controller tracking structures
+        if device_id in authorized_devices:
+            del authorized_devices[device_id]
+        if device_id in device_data:
+            del device_data[device_id]
+        if device_id in last_seen:
+            del last_seen[device_id]
+        if device_id in packet_counts:
+            del packet_counts[device_id]
+        if device_id in device_tokens:
+            del device_tokens[device_id]
+        
+        # Remove MAC address mapping
+        mac_to_remove = None
+        for did, mac in mac_addresses.items():
+            if did == device_id:
+                mac_to_remove = did
+                break
+        if mac_to_remove:
+            del mac_addresses[mac_to_remove]
+        
+        app.logger.info(f"Device {device_id} permanently removed from system")
+        
+        return json.dumps({
+            'status': 'success',
+            'message': f'Device {device_id} permanently removed',
+            'database_removed': db_removed,
+            'can_rejoin': True
+        }), 200
+            
+    except Exception as e:
+        app.logger.error(f"Error removing device: {e}")
+        return json.dumps({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
 @app.route('/api/device_history', methods=['GET'])
 def get_device_history():
     """

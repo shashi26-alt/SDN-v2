@@ -383,6 +383,52 @@ class DeviceOnboarding:
         self.monitoring_thread.start()
         logger.info("Profiling monitor thread started")
     
+    def remove_device(self, device_id: str) -> bool:
+        """
+        Permanently remove a device from the system.
+        This deletes all device data and allows re-registration as pending.
+        
+        Args:
+            device_id: Device identifier
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            logger.info(f"Permanently removing device {device_id}...")
+            
+            # Stop any active profiling for this device (if method exists)
+            try:
+                if hasattr(self.profiler, 'stop_profiling'):
+                    self.profiler.stop_profiling(device_id)
+            except Exception as e:
+                logger.debug(f"Could not stop profiling for {device_id}: {e}")
+            
+            # Revoke and delete certificate
+            self.cert_manager.revoke_certificate(device_id)
+            
+            # Remove SDN policy if available
+            if self.sdn_policy_engine:
+                try:
+                    self.sdn_policy_engine.remove_policy(device_id)
+                    logger.info(f"SDN policy removed for {device_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to remove SDN policy for {device_id}: {e}")
+            
+            # Delete from database (this removes all related data)
+            success = self.identity_db.delete_device(device_id)
+            
+            if success:
+                logger.info(f"Device {device_id} permanently removed from system")
+            else:
+                logger.warning(f"Device {device_id} not found in database")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"Failed to remove device {device_id}: {e}")
+            return False
+    
     def stop_monitoring(self):
         """Stop the profiling monitor thread"""
         self.monitoring_enabled = False
