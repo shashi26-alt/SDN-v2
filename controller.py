@@ -330,51 +330,6 @@ def onboard_device():
             'message': str(e)
         }), 500
 
-@app.route('/finalize_onboarding', methods=['POST'])
-def finalize_onboarding():
-    """
-    Manually finalize onboarding for a device (establish baseline and generate policy)
-    
-    Request JSON:
-    {
-        "device_id": "DEVICE_ID"
-    }
-    
-    Returns:
-        Finalization result with baseline and policy
-    """
-    if not ONBOARDING_AVAILABLE or not onboarding:
-        return json.dumps({
-            'status': 'error',
-            'message': 'Device onboarding system not available'
-        }), 503
-    
-    try:
-        data = request.json
-        device_id = data.get('device_id')
-        
-        if not device_id:
-            return json.dumps({
-                'status': 'error',
-                'message': 'Missing device_id'
-            }), 400
-        
-        # Finalize onboarding
-        result = onboarding.finalize_onboarding(device_id)
-        
-        if result['status'] == 'success':
-            app.logger.info(f"Onboarding finalized for {device_id}. Baseline and policy generated.")
-            return json.dumps(result), 200
-        else:
-            return json.dumps(result), 400
-            
-    except Exception as e:
-        app.logger.error(f"Finalization error: {str(e)}")
-        return json.dumps({
-            'status': 'error',
-            'message': str(e)
-        }), 500
-
 @app.route('/get_profiling_status', methods=['GET'])
 def get_profiling_status():
     """

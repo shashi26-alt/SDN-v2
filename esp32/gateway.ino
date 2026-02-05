@@ -252,8 +252,22 @@ void loop()
                 Serial.print("[Gateway] Controller response: ");
                 Serial.println(response);
 
-                // Send response back to node
-                client.println("HTTP/1.1 200 OK");
+                // Determine HTTP status line to return to the node
+                int statusCode = httpCode > 0 ? httpCode : 502;
+                String statusText = "OK";
+                if (statusCode == 400) statusText = "Bad Request";
+                else if (statusCode == 401) statusText = "Unauthorized";
+                else if (statusCode == 403) statusText = "Forbidden";
+                else if (statusCode == 404) statusText = "Not Found";
+                else if (statusCode == 500) statusText = "Internal Server Error";
+                else if (statusCode == 502) statusText = "Bad Gateway";
+                else if (statusCode == 503) statusText = "Service Unavailable";
+
+                // Send controller's status code and body back to node
+                client.print("HTTP/1.1 ");
+                client.print(statusCode);
+                client.print(" ");
+                client.println(statusText);
                 client.println("Content-Type: application/json");
                 client.println("Connection: close");
                 client.println();
