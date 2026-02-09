@@ -1182,7 +1182,6 @@
                             <tr>
                                 <th>Device ID</th>
                                 <th>Status</th>
-                                <th>Authorization</th>
                                 <th>Certificate</th>
                                 <th>Packets</th>
                                 <th>Packets/Min</th>
@@ -1199,24 +1198,10 @@
                                         Checking...
                                     </span>
                                 </td>
-                                <td>
-                                    <span class="status-badge {{ 'authorized' if authorized else 'unauthorized' }}">
-                                        {{ 'Authorized' if authorized else 'Unauthorized' }}
-                                    </span>
-                                </td>
                                 <td id="packets-{{ device }}">{{ data[device] }}</td>
                                 <td id="packets-per-min-{{ device }}">0</td>
                                 <td id="last-seen-{{ device }}">--</td>
                                 <td>
-                                    <form method="POST" action="/update" style="display: inline;">
-                                        <input type="hidden" name="device_id" value="{{ device }}">
-                                        <input type="hidden" name="action"
-                                            value="{{ 'revoke' if authorized else 'authorize' }}">
-                                        <button type="submit"
-                                            class="button {{ 'button-danger' if authorized else 'button-primary' }}">
-                                            {{ 'Revoke' if authorized else 'Authorize' }}
-                                        </button>
-                                    </form>
                                     <button class="button button-danger" onclick="removeDevice('{{ device }}')"
                                         style="margin-left: 0.5rem; background-color: #d32f2f;">
                                         Delete
@@ -2096,11 +2081,6 @@
                                 </span>
                             </td>
                             <td>
-                                <span class="status-badge ${authClass}">
-                                    ${authText}
-                                </span>
-                            </td>
-                            <td>
                                 <span class="status-badge ${certClass}" style="background: ${hasCert ? 'rgba(16, 185, 129, 0.1)' : 'rgba(148, 163, 184, 0.1)'}; color: ${hasCert ? '#10b981' : '#94a3b8'}; border-color: ${hasCert ? 'rgba(16, 185, 129, 0.2)' : 'rgba(148, 163, 184, 0.2)'};">
                                     ${certText}
                                 </span>
@@ -2109,13 +2089,6 @@
                             <td id="packets-per-min-${deviceId}">${packetsPerMin}</td>
                             <td id="last-seen-${deviceId}">${lastSeenText}</td>
                             <td>
-                                <form method="POST" action="/update" style="display: inline;">
-                                    <input type="hidden" name="device_id" value="${deviceId}">
-                                    <input type="hidden" name="action" value="${isAuthorized ? 'revoke' : 'authorize'}">
-                                    <button type="submit" class="button ${isAuthorized ? 'button-danger' : 'button-primary'}">
-                                        ${isAuthorized ? 'Revoke' : 'Authorize'}
-                                    </button>
-                                </form>
                                 <button class="button button-danger" onclick="removeDevice('${deviceId}')" style="margin-left: 0.5rem; background-color: #d32f2f;">
                                     Delete
                                 </button>
@@ -2125,7 +2098,7 @@
                 });
 
                 if (deviceNodes.length === 0) {
-                    html = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No devices found</td></tr>';
+                    html = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No devices found</td></tr>';
                 }
 
                 tbody.innerHTML = html;
@@ -2133,7 +2106,7 @@
                 console.error('Error loading devices list:', err);
                 const tbody = document.getElementById('device-list');
                 if (tbody) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--danger-color);">Error loading devices</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--danger-color);">Error loading devices</td></tr>';
                 }
             });
         }
