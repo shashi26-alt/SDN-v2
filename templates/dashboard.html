@@ -1185,6 +1185,7 @@
                                 <th>Certificate</th>
                                 <th>Packets</th>
                                 <th>Packets/Min</th>
+                                <th>Trust Score</th>
                                 <th>Last Seen</th>
                                 <th>Actions</th>
                             </tr>
@@ -1200,6 +1201,10 @@
                                 </td>
                                 <td id="packets-{{ device }}">{{ data[device] }}</td>
                                 <td id="packets-per-min-{{ device }}">0</td>
+                                <td id="trust-score-{{ device }}">
+                                    <span class="status-badge"
+                                        style="background-color: #ffc107; color: #212529;">--</span>
+                                </td>
                                 <td id="last-seen-{{ device }}">--</td>
                                 <td>
                                     <button class="button button-danger" onclick="removeDevice('{{ device }}')"
@@ -2002,10 +2007,14 @@
             Promise.all([
                 fetch('/get_topology_with_mac').then(r => r.json()),
                 fetch('/get_health_metrics').then(r => r.json()),
-                fetch('/api/network/statistics').then(r => r.json())
-            ]).then(([topologyData, healthData, networkStats]) => {
+                fetch('/api/network/statistics').then(r => r.json()),
+                fetch('/api/trust_scores').then(r => r.json())
+            ]).then(([topologyData, healthData, networkStats, trustScoresData]) => {
                 const tbody = document.getElementById('device-list');
                 if (!tbody) return;
+
+                // Extract trust scores
+                const trustScores = trustScoresData.scores || {};
 
                 let html = '';
                 const devices = topologyData.nodes || [];
@@ -2072,6 +2081,25 @@
                     const certClass = hasCert ? 'authorized' : 'unauthorized';
                     const certText = hasCert ? 'Verified' : 'None';
 
+                    // Calculate trust score display
+                    const trustScore = trustScores[deviceId] || 70; // Default to 70 if not found
+                    let trustColor = '#10b981'; // Green for high
+                    let trustBg = 'rgba(16, 185, 129, 0.1)';
+                    let trustLevel = 'Trusted';
+                    if (trustScore < 30) {
+                        trustColor = '#ef4444'; // Red
+                        trustBg = 'rgba(239, 68, 68, 0.1)';
+                        trustLevel = 'Untrusted';
+                    } else if (trustScore < 50) {
+                        trustColor = '#f97316'; // Orange
+                        trustBg = 'rgba(249, 115, 22, 0.1)';
+                        trustLevel = 'Suspicious';
+                    } else if (trustScore < 70) {
+                        trustColor = '#eab308'; // Yellow
+                        trustBg = 'rgba(234, 179, 8, 0.1)';
+                        trustLevel = 'Monitored';
+                    }
+
                     html += `
                         <tr>
                             <td><strong>${deviceId}</strong></td>
@@ -2087,6 +2115,11 @@
                             </td>
                             <td id="packets-${deviceId}">${packets}</td>
                             <td id="packets-per-min-${deviceId}">${packetsPerMin}</td>
+                            <td id="trust-score-${deviceId}">
+                                <span class="status-badge" style="background: ${trustBg}; color: ${trustColor}; border-color: ${trustColor}20;">
+                                    ${trustScore} - ${trustLevel}
+                                </span>
+                            </td>
                             <td id="last-seen-${deviceId}">${lastSeenText}</td>
                             <td>
                                 <button class="button button-danger" onclick="removeDevice('${deviceId}')" style="margin-left: 0.5rem; background-color: #d32f2f;">
@@ -2098,7 +2131,7 @@
                 });
 
                 if (deviceNodes.length === 0) {
-                    html = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No devices found</td></tr>';
+                    html = '<tr><td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No devices found</td></tr>';
                 }
 
                 tbody.innerHTML = html;
@@ -2106,7 +2139,7 @@
                 console.error('Error loading devices list:', err);
                 const tbody = document.getElementById('device-list');
                 if (tbody) {
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--danger-color);">Error loading devices</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem; color: var(--danger-color);">Error loading devices</td></tr>';
                 }
             });
         }

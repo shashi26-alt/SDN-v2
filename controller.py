@@ -1581,6 +1581,54 @@ def get_certificates():
             'message': str(e)
         }), 500
 
+@app.route('/api/trust_scores', methods=['GET'])
+def get_trust_scores():
+    """Get all device trust scores"""
+    try:
+        scores = {}
+        
+        # Try to get trust scores from the onboarding identity database
+        if ONBOARDING_AVAILABLE and onboarding:
+            all_scores = onboarding.identity_db.load_all_trust_scores()
+            scores = all_scores
+        
+        return json.dumps({
+            'status': 'success',
+            'scores': scores
+        }), 200
+        
+    except Exception as e:
+        app.logger.error(f"Error getting trust scores: {e}")
+        return json.dumps({
+            'status': 'error',
+            'message': str(e),
+            'scores': {}
+        }), 500
+
+@app.route('/api/trust_scores/<device_id>/history', methods=['GET'])
+def get_trust_score_history(device_id):
+    """Get trust score history for a specific device"""
+    try:
+        limit = int(request.args.get('limit', 100))
+        history = []
+        
+        if ONBOARDING_AVAILABLE and onboarding:
+            history = onboarding.identity_db.get_trust_score_history(device_id, limit)
+        
+        return json.dumps({
+            'status': 'success',
+            'device_id': device_id,
+            'history': history
+        }), 200
+        
+    except Exception as e:
+        app.logger.error(f"Error getting trust score history for {device_id}: {e}")
+        return json.dumps({
+            'status': 'error',
+            'message': str(e),
+            'history': []
+        }), 500
+
 @app.route('/get_health_metrics')
 def get_health_metrics():
     """Get real device health metrics based on actual device status"""
