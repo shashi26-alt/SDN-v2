@@ -735,13 +735,19 @@ def data():
         try:
             current_score = trust_scorer.get_trust_score(device_id)
             if current_score is not None and current_score < trust_scorer.initial_score:
-                # Only recover if not currently flagged as redirected
-                is_redirected = any(
-                    a.get('device_id') == device_id and a.get('redirected')
-                    for a in suspicious_device_alerts
-                )
-                if not is_redirected:
-                    trust_scorer.adjust_trust_score(device_id, +2, "Normal behavior observed")
+                trust_scorer.adjust_trust_score(device_id, +2, "Normal behavior observed")
+                
+                # If score recovered above untrusted threshold (30),
+                # clear the redirected flag so device reconnects on map
+                new_score = trust_scorer.get_trust_score(device_id)
+                if new_score is not None and new_score >= 30:
+                    for alert in suspicious_device_alerts:
+                        if alert.get('device_id') == device_id and alert.get('redirected'):
+                            alert['redirected'] = False
+                            app.logger.info(
+                                f"✅ Device {device_id} trust recovered to {new_score}, "
+                                f"clearing honeypot redirect"
+                            )
         except Exception:
             pass
 
