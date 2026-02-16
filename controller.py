@@ -203,6 +203,20 @@ elif PENDING_MANAGER_AVAILABLE:
     except Exception as pe:
         print(f"⚠️  Failed to initialize pending device manager: {pe}")
 
+# Initialize Trust Scorer for live trust score management
+try:
+    from trust_evaluator.trust_scorer import TrustScorer
+    trust_scorer = TrustScorer(
+        initial_score=70,
+        identity_db=onboarding.identity_db if (ONBOARDING_AVAILABLE and onboarding) else None
+    )
+    TRUST_SCORER_AVAILABLE = True
+    print(" [OK] Trust Scorer initialized")
+except Exception as e:
+    trust_scorer = None
+    TRUST_SCORER_AVAILABLE = False
+    print(f"⚠️  Trust Scorer not available: {e}")
+
 
 @app.route('/ml/health')
 def ml_health():
@@ -1587,14 +1601,36 @@ def get_trust_scores():
     try:
         scores = {}
         
-        # Try to get trust scores from the onboarding identity database
-        if ONBOARDING_AVAILABLE and onboarding:
-            all_scores = onboarding.identity_db.load_all_trust_scores()
-            scores = all_scores
+        # Use live TrustScorer for real-time scores
+        if TRUST_SCORER_AVAILABLE and trust_scorer:
+            scores = trust_scorer.get_all_scores()
+        # Fallback to database
+        elif ONBOARDING_AVAILABLE and onboarding:
+            scores = onboarding.identity_db.load_all_trust_scores()
+        
+        # Include trust level for each device
+        scores_with_levels = {}
+        for device_id, score in scores.items():
+            level = 'unknown'
+            if TRUST_SCORER_AVAILABLE and trust_scorer:
+                level = trust_scorer.get_trust_level(device_id)
+            elif score >= 70:
+                level = 'trusted'
+            elif score >= 50:
+                level = 'monitored'
+            elif score >= 30:
+                level = 'suspicious'
+            else:
+                level = 'untrusted'
+            scores_with_levels[device_id] = {
+                'score': score,
+                'level': level
+            }
         
         return json.dumps({
             'status': 'success',
-            'scores': scores
+            'scores': scores,
+            'details': scores_with_levels
         }), 200
         
     except Exception as e:
@@ -2017,7 +2053,7 @@ def start_ml_engine():
 # Suspicious Device Alert Management
 def create_suspicious_device_alert(device_id, reason, severity, redirected=True):
     """
-    Create a suspicious device alert
+    Create a suspicious device alert and reduce trust score
     
     Args:
         device_id: Device identifier
@@ -2025,6 +2061,27 @@ def create_suspicious_device_alert(device_id, reason, severity, redirected=True)
         severity: Alert severity ('low', 'medium', 'high')
         redirected: Whether device was redirected to honeypot
     """
+    # === REDUCE TRUST SCORE on alert ===
+    current_score = None
+    trust_level = 'unknown'
+    if TRUST_SCORER_AVAILABLE and trust_scorer:
+        try:
+            # Initialize device if not already tracked
+            if trust_scorer.get_trust_score(device_id) is None:
+                trust_scorer.initialize_device(device_id)
+            
+            # Record security alert — this reduces the trust score
+            trust_scorer.record_security_alert(device_id, reason, severity)
+            current_score = trust_scorer.get_trust_score(device_id)
+            trust_level = trust_scorer.get_trust_level(device_id)
+            
+            app.logger.warning(
+                f"🔻 Trust score for {device_id}: {current_score} (level: {trust_level}) "
+                f"after {reason} [{severity}]"
+            )
+        except Exception as e:
+            app.logger.error(f"Failed to adjust trust score for {device_id}: {e}")
+    
     # Check if alert already exists for this device
     existing_alert = None
     for alert in suspicious_device_alerts:
@@ -2037,6 +2094,10 @@ def create_suspicious_device_alert(device_id, reason, severity, redirected=True)
         existing_alert['timestamp'] = datetime.now().isoformat()
         existing_alert['reason'] = reason
         existing_alert['severity'] = severity
+        existing_alert['trust_score'] = current_score
+        existing_alert['trust_level'] = trust_level
+        existing_alert['detection_count'] = existing_alert.get('detection_count', 0) + 1
+        existing_alert['honeypot_activity_count'] = existing_alert.get('honeypot_activity_count', 0) + 1
         return existing_alert
     
     alert = {
@@ -2045,7 +2106,10 @@ def create_suspicious_device_alert(device_id, reason, severity, redirected=True)
         'reason': reason,
         'severity': severity,
         'redirected': redirected,
-        'honeypot_activity_count': 0
+        'honeypot_activity_count': 1,
+        'trust_score': current_score,
+        'trust_level': trust_level,
+        'detection_count': 1
     }
     suspicious_device_alerts.append(alert)
     # Keep only last 100 alerts
@@ -2228,18 +2292,29 @@ def get_honeypot_status():
             container_status = deployer.get_status()
             is_running = deployer.is_running()
             
-            # Get threats from threat intelligence if available
+            # Populate threats from suspicious device alerts
             threats = []
             blocked_ips = []
             mitigation_rules = []
             
-            try:
-                from honeypot_manager.threat_intelligence import ThreatIntelligence
-                # Try to get threat intelligence instance
-                # This would need to be initialized elsewhere or passed in
-                # For now, return empty lists
-            except Exception:
-                pass
+            for alert in suspicious_device_alerts:
+                threats.append({
+                    'device_id': alert.get('device_id'),
+                    'timestamp': alert.get('timestamp'),
+                    'type': alert.get('reason', 'unknown'),
+                    'severity': alert.get('severity', 'medium'),
+                    'trust_score': alert.get('trust_score'),
+                    'trust_level': alert.get('trust_level'),
+                    'detection_count': alert.get('detection_count', 1)
+                })
+                # Treat devices with trust score < 30 as effectively blocked
+                ts = alert.get('trust_score')
+                if ts is not None and ts < 30:
+                    blocked_ips.append({
+                        'device_id': alert.get('device_id'),
+                        'reason': f'Trust score critically low: {ts}',
+                        'blocked_at': alert.get('timestamp')
+                    })
             
             return json.dumps({
                 'status': 'running' if is_running else 'stopped',
@@ -2288,7 +2363,10 @@ def get_redirected_devices():
                     'timestamp': alert.get('timestamp'),
                     'reason': alert.get('reason'),
                     'severity': alert.get('severity'),
-                    'activity_count': alert.get('honeypot_activity_count', 0)
+                    'activity_count': alert.get('honeypot_activity_count', 0),
+                    'trust_score': alert.get('trust_score'),
+                    'trust_level': alert.get('trust_level'),
+                    'detection_count': alert.get('detection_count', 1)
                 })
         
         # Check honeypot container status
@@ -2328,21 +2406,40 @@ def get_device_honeypot_activity(device_id):
     try:
         limit = int(request.args.get('limit', 100))
         
-        # Get activity count from alert if it exists
-        # The activity count is updated by the honeypot monitoring thread via API
+        # Get activity and detection data from alerts
         activity_count = 0
         activities = []
+        trust_score = None
+        trust_level = 'unknown'
         
         for alert in suspicious_device_alerts:
             if alert.get('device_id') == device_id:
                 activity_count = alert.get('honeypot_activity_count', 0)
-                break
+                trust_score = alert.get('trust_score')
+                trust_level = alert.get('trust_level', 'unknown')
+                # Build activity entry from alert data
+                activities.append({
+                    'timestamp': alert.get('timestamp'),
+                    'type': alert.get('reason', 'ml_detection'),
+                    'severity': alert.get('severity', 'medium'),
+                    'detection_count': alert.get('detection_count', 1),
+                    'trust_score_at_time': trust_score
+                })
+        
+        # Also get live trust score if available
+        if TRUST_SCORER_AVAILABLE and trust_scorer:
+            live_score = trust_scorer.get_trust_score(device_id)
+            if live_score is not None:
+                trust_score = live_score
+                trust_level = trust_scorer.get_trust_level(device_id)
         
         return json.dumps({
             'status': 'success',
             'device_id': device_id,
             'activities': activities,
-            'count': activity_count
+            'count': activity_count,
+            'trust_score': trust_score,
+            'trust_level': trust_level
         }), 200
     except Exception as e:
         app.logger.error(f"Error getting device activity: {e}")
