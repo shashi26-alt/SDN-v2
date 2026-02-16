@@ -1769,6 +1769,36 @@
                                 background: '#ef5350'
                             }
                         }
+                    },
+                    untrusted: {
+                        color: {
+                            border: '#d50000',
+                            background: '#ff1744',
+                            highlight: {
+                                border: '#d50000',
+                                background: '#ff5252'
+                            },
+                            hover: {
+                                border: '#d50000',
+                                background: '#ff5252'
+                            }
+                        },
+                        borderWidth: 3,
+                        borderWidthSelected: 4
+                    },
+                    suspicious: {
+                        color: {
+                            border: '#e65100',
+                            background: '#ff9800',
+                            highlight: {
+                                border: '#e65100',
+                                background: '#ffb74d'
+                            },
+                            hover: {
+                                border: '#e65100',
+                                background: '#ffb74d'
+                            }
+                        }
                     }
                 }
             };
@@ -2081,8 +2111,8 @@
                     const certClass = hasCert ? 'authorized' : 'unauthorized';
                     const certText = hasCert ? 'Verified' : 'None';
 
-                    // Calculate trust score display
-                    const trustScore = trustScores[deviceId] || 70; // Default to 70 if not found
+                    // Calculate trust score display — use ?? to preserve score of 0
+                    const trustScore = (trustScores[deviceId] !== undefined && trustScores[deviceId] !== null) ? trustScores[deviceId] : 70;
                     let trustColor = '#10b981'; // Green for high
                     let trustBg = 'rgba(16, 185, 129, 0.1)';
                     let trustLevel = 'Trusted';
@@ -2172,24 +2202,36 @@
         }
 
         function updateTopology(data) {
-            // Enhanced topology processing: set group based on status and connection
+            // Enhanced topology processing: set group based on trust level and connection
             const nodes = data.nodes.map(node => {
-                // Check if device is connected (has an edge or is online/active)
                 const isOnline = node.online === true || node.status === 'active' || node.status === 'online';
                 const hasEdge = Array.isArray(data.edges) && data.edges.some(edge =>
                     edge.from === node.id || edge.to === node.id
                 );
-                // Gateway is always connected, devices are connected if online and have edge
                 const isConnected = node.type === 'gateway' || (isOnline && hasEdge);
 
-                // Determine group: green for connected/active devices, red for inactive
-                const group = isConnected ? 'active' : 'inactive';
+                // Determine group based on trust level
+                let group = 'active';
+                const trustLevel = node.trust_level || 'trusted';
+                const isRedirected = node.redirected_to_honeypot === true;
+
+                if (isRedirected || trustLevel === 'untrusted') {
+                    group = 'untrusted';  // Red pulsing circle, detached
+                } else if (trustLevel === 'suspicious') {
+                    group = 'suspicious';  // Orange circle
+                } else if (!isConnected) {
+                    group = 'inactive';  // Red circle (offline)
+                }
+
+                // Build tooltip with trust info
+                const trustScore = node.trust_score !== undefined ? node.trust_score : '--';
+                let trustBadge = isRedirected ? '\n🍯 REDIRECTED TO HONEYPOT' : '';
 
                 return {
                     ...node,
                     group: group,
-                    title: `${node.label}<br>Status: ${node.status || (node.online ? 'active' : 'inactive')}<br>Connection: ${isConnected ? 'Connected' : 'Disconnected'}<br>Last Seen: ${new Date(node.last_seen * 1000).toLocaleTimeString()}`,
-                    size: node.type === 'gateway' ? 40 : 30,
+                    title: `${node.label}<br>Status: ${node.status || (node.online ? 'active' : 'inactive')}<br>Connection: ${isConnected ? 'Connected' : 'Disconnected'}<br>Trust: ${trustScore} (${trustLevel})<br>Last Seen: ${new Date(node.last_seen * 1000).toLocaleTimeString()}${trustBadge ? '<br>' + trustBadge : ''}`,
+                    size: node.type === 'gateway' ? 40 : (group === 'untrusted' ? 35 : 30),
                     font: {
                         size: 14,
                         color: '#ffffff',
@@ -2948,8 +2990,10 @@
                     } else {
                         threatsList.innerHTML = threats.slice(-10).reverse().map(threat => `
                             <div class="alert ${threat.severity || 'medium'}">
-                                <strong>${threat.event_type || 'Unknown'}</strong><br>
-                                <small>IP: ${threat.source_ip || 'Unknown'}</small><br>
+                                <strong>${threat.type || threat.event_type || 'Unknown'}</strong><br>
+                                <small>Device: ${threat.device_id || threat.source_ip || 'Unknown'}</small>
+                                ${threat.trust_score !== undefined ? `<br><small>Trust Score: ${threat.trust_score} (${threat.trust_level || 'unknown'})</small>` : ''}
+                                ${threat.detection_count ? `<br><small>Detections: ${threat.detection_count}</small>` : ''}<br>
                                 <small>${threat.timestamp || ''}</small>
                             </div>
                         `).join('');

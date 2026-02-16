@@ -1079,6 +1079,21 @@ def get_topology_with_mac():
                device_info.get('mac_address') or 
                "Unknown")
         
+        # Get trust score and level for this device
+        node_trust_score = 70  # default
+        node_trust_level = 'trusted'
+        if TRUST_SCORER_AVAILABLE and trust_scorer:
+            ts = trust_scorer.get_trust_score(device_id)
+            if ts is not None:
+                node_trust_score = ts
+                node_trust_level = trust_scorer.get_trust_level(device_id)
+        
+        # Check if device is redirected to honeypot
+        is_redirected = any(
+            a.get('device_id') == device_id and a.get('redirected')
+            for a in suspicious_device_alerts
+        )
+        
         topology["nodes"].append({
             "id": device_id,
             "label": device_id,
@@ -1088,11 +1103,16 @@ def get_topology_with_mac():
             "type": "device",
             "last_seen": last_seen_time,
             "packets": sum(device_data.get(device_id, [])),
-            "onboarded": device_id in devices_from_db
+            "onboarded": device_id in devices_from_db,
+            "trust_score": node_trust_score,
+            "trust_level": node_trust_level,
+            "redirected_to_honeypot": is_redirected
         })
         
-        # Only add edge if device is online/connected OR active
-        if (online or device_status == 'active') and device_status != 'revoked':
+        # Only add edge if device is online/connected, active, AND trusted enough
+        # Untrusted devices (trust < 30) or honeypot-redirected devices are detached
+        is_untrusted = node_trust_level == 'untrusted' or is_redirected
+        if (online or device_status == 'active') and device_status != 'revoked' and not is_untrusted:
             topology["edges"].append({
                 "from": device_id,
                 "to": "ESP32_Gateway"
