@@ -19,7 +19,6 @@
 #include <HTTPClient.h>
 #include <WiFi.h>
 
-
 // Gateway Access Point Configuration
 const char *ssid = "ESP32-AP";     // Must match gateway AP name
 const char *password = "12345678"; // Must match gateway AP password
@@ -38,8 +37,9 @@ const unsigned long NORMAL_PHASE_DURATION =
     30000; // 30 seconds of normal behavior
 const unsigned long NORMAL_SEND_INTERVAL = 5000; // Normal: send every 5 seconds
 const unsigned long ATTACK_SEND_INTERVAL =
-    200;                          // Attack: flood every 200ms (300 pkt/min)
-const int ATTACK_BURST_COUNT = 5; // Send 5 packets per burst in attack mode
+    2000; // Attack: send every 2s (avoids flooding gateway)
+const int ATTACK_BURST_COUNT =
+    1; // Send 1 packet per cycle (ML detects via content features)
 
 // State tracking
 unsigned long startTime = 0;
@@ -139,9 +139,9 @@ void loop() {
     Serial.println("║   Flooding /data endpoint...         ║");
     Serial.println("╚══════════════════════════════════════╝\n");
     Serial.println("[ATTACKER] Attack parameters:");
-    Serial.println("  • Interval: 200ms (300+ pkt/min)");
-    Serial.println("  • Burst: 5 packets per cycle");
-    Serial.println("  • High rate/pps/bps values");
+    Serial.println("  • Interval: 2000ms (30 pkt/min)");
+    Serial.println("  • Burst: 1 packet per cycle");
+    Serial.println("  • High rate/pps/bps values in content");
     Serial.println("  • Suspicious port patterns");
     Serial.println("  • SYN flood TCP flags\n");
   }
