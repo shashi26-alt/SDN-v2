@@ -2204,7 +2204,8 @@
         function updateTopology(data) {
             // Enhanced topology processing: set group based on trust level and connection
             const nodes = data.nodes.map(node => {
-                const isOnline = node.online === true || node.status === 'active' || node.status === 'online';
+                // Use only the live online flag (10s timeout), not DB status
+                const isOnline = node.online === true;
                 const hasEdge = Array.isArray(data.edges) && data.edges.some(edge =>
                     edge.from === node.id || edge.to === node.id
                 );

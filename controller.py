@@ -1072,7 +1072,9 @@ def get_topology_with_mac():
         
         # Get device info from database if available
         device_info = devices_from_db.get(device_id, {})
-        device_status = device_info.get('status', 'active' if online else 'inactive')
+        # Use live online check as primary — DB status stays 'active' forever
+        db_status = device_info.get('status', '')
+        device_status = 'active' if online else ('revoked' if db_status == 'revoked' else 'inactive')
         
         # Get MAC address (from database, mac_addresses dict, or default)
         mac = (mac_addresses.get(device_id) or 
@@ -1109,10 +1111,10 @@ def get_topology_with_mac():
             "redirected_to_honeypot": is_redirected
         })
         
-        # Only add edge if device is online/connected, active, AND trusted enough
+        # Only add edge if device is ACTUALLY online (sending data within 10s)
         # Untrusted devices (trust < 30) or honeypot-redirected devices are detached
         is_untrusted = node_trust_level == 'untrusted' or is_redirected
-        if (online or device_status == 'active') and device_status != 'revoked' and not is_untrusted:
+        if online and device_status != 'revoked' and not is_untrusted:
             topology["edges"].append({
                 "from": device_id,
                 "to": "ESP32_Gateway"
