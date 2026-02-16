@@ -2228,9 +2228,21 @@
                 const trustScore = node.trust_score !== undefined ? node.trust_score : '--';
                 let trustBadge = isRedirected ? '\n🍯 REDIRECTED TO HONEYPOT' : '';
 
+                // Explicit color per group — vis.js caches inline colors,
+                // so changing group alone doesn't repaint the node
+                const groupColors = {
+                    active: { border: '#1b5e20', background: '#4caf50', highlight: { border: '#1b5e20', background: '#66bb6a' }, hover: { border: '#1b5e20', background: '#66bb6a' } },
+                    inactive: { border: '#b71c1c', background: '#f44336', highlight: { border: '#b71c1c', background: '#ef5350' }, hover: { border: '#b71c1c', background: '#ef5350' } },
+                    untrusted: { border: '#d50000', background: '#ff1744', highlight: { border: '#d50000', background: '#ff5252' }, hover: { border: '#d50000', background: '#ff5252' } },
+                    suspicious: { border: '#e65100', background: '#ff9800', highlight: { border: '#e65100', background: '#ffb74d' }, hover: { border: '#e65100', background: '#ffb74d' } }
+                };
+
                 return {
-                    ...node,
+                    id: node.id,
+                    label: node.label,
                     group: group,
+                    color: groupColors[group] || groupColors.active,
+                    borderWidth: group === 'untrusted' ? 3 : 1,
                     title: `${node.label}<br>Status: ${node.status || (node.online ? 'active' : 'inactive')}<br>Connection: ${isConnected ? 'Connected' : 'Disconnected'}<br>Trust: ${trustScore} (${trustLevel})<br>Last Seen: ${new Date(node.last_seen * 1000).toLocaleTimeString()}${trustBadge ? '<br>' + trustBadge : ''}`,
                     size: node.type === 'gateway' ? 40 : (group === 'untrusted' ? 35 : 30),
                     font: {
