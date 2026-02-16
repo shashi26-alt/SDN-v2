@@ -106,6 +106,7 @@ sdn_metrics = {
 
 # Suspicious device alerts for dashboard
 suspicious_device_alerts = []  # List of alert dictionaries
+_last_trust_reduction = {}  # {device_id: timestamp} — rate-limit trust score hits
 
 # Initialize ML Security Engine
 ml_engine = None
@@ -682,6 +683,7 @@ def data():
         timestamps.append(current_time)
     # Feed packet to ML engine for anomaly detection with device context
     global ml_engine
+    is_attack_detected = False
     try:
         if ml_engine and ml_engine.is_loaded:
             result = ml_engine.predict_attack({
@@ -705,18 +707,43 @@ def data():
             
             # Check if ML detected high-confidence attack and trigger redirection
             if result and result.get('is_attack', False) and result.get('confidence', 0) > 0.8:
-                # High confidence attack detected - create alert
-                severity = 'high' if result.get('confidence', 0) > 0.9 else 'medium'
-                create_suspicious_device_alert(
-                    device_id=device_id,
-                    reason='ml_detection',
-                    severity=severity,
-                    redirected=True
-                )
-                app.logger.warning(f"High-confidence ML attack detected for {device_id}: {result.get('attack_type')}")
+                is_attack_detected = True
+                # Rate-limit trust score reduction: only once per 60s per device
+                last_alert_time = _last_trust_reduction.get(device_id, 0)
+                if current_time - last_alert_time > 60:  # 60s cooldown
+                    severity = 'high' if result.get('confidence', 0) > 0.9 else 'medium'
+                    create_suspicious_device_alert(
+                        device_id=device_id,
+                        reason='ml_detection',
+                        severity=severity,
+                        redirected=True
+                    )
+                    _last_trust_reduction[device_id] = current_time
+                    app.logger.warning(f"High-confidence ML attack detected for {device_id}: {result.get('attack_type')}")
+                else:
+                    # Update detection count on existing alert without reducing trust again
+                    for alert in suspicious_device_alerts:
+                        if alert.get('device_id') == device_id:
+                            alert['detection_count'] = alert.get('detection_count', 0) + 1
+                            break
     except Exception as e:
         # Non-fatal for data ingestion; continue normally
         app.logger.warning(f"ML prediction error (non-fatal): {str(e)}")
+
+    # Trust recovery: normal (non-attack) traffic slowly restores trust score
+    if not is_attack_detected and TRUST_SCORER_AVAILABLE and trust_scorer:
+        try:
+            current_score = trust_scorer.get_trust_score(device_id)
+            if current_score is not None and current_score < trust_scorer.initial_score:
+                # Only recover if not currently flagged as redirected
+                is_redirected = any(
+                    a.get('device_id') == device_id and a.get('redirected')
+                    for a in suspicious_device_alerts
+                )
+                if not is_redirected:
+                    trust_scorer.adjust_trust_score(device_id, +2, "Normal behavior observed")
+        except Exception:
+            pass
 
     return json.dumps({'status': 'accepted'})
 
