@@ -734,20 +734,22 @@ def data():
     if not is_attack_detected and TRUST_SCORER_AVAILABLE and trust_scorer:
         try:
             current_score = trust_scorer.get_trust_score(device_id)
+            
+            # Gradually recover trust for normal traffic
             if current_score is not None and current_score < trust_scorer.initial_score:
                 trust_scorer.adjust_trust_score(device_id, +2, "Normal behavior observed")
-                
-                # If score recovered above untrusted threshold (30),
-                # clear the redirected flag so device reconnects on map
-                new_score = trust_scorer.get_trust_score(device_id)
-                if new_score is not None and new_score >= 30:
-                    for alert in suspicious_device_alerts:
-                        if alert.get('device_id') == device_id and alert.get('redirected'):
-                            alert['redirected'] = False
-                            app.logger.info(
-                                f"✅ Device {device_id} trust recovered to {new_score}, "
-                                f"clearing honeypot redirect"
-                            )
+                current_score = trust_scorer.get_trust_score(device_id)
+            
+            # Always check: if score is >= 30, clear any stale redirected flags
+            # This runs even if the score is already at 70
+            if current_score is not None and current_score >= 30:
+                for alert in suspicious_device_alerts:
+                    if alert.get('device_id') == device_id and alert.get('redirected'):
+                        alert['redirected'] = False
+                        app.logger.info(
+                            f"✅ Device {device_id} trust at {current_score}, "
+                            f"clearing honeypot redirect — device will reconnect on map"
+                        )
         except Exception:
             pass
 
