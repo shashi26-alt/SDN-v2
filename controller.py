@@ -1097,9 +1097,13 @@ def get_topology_with_mac():
                 if isinstance(db_timestamp, str):
                     from datetime import datetime
                     db_time = datetime.fromisoformat(db_timestamp.replace('Z', '+00:00'))
-                    last_seen_time = db_time.timestamp()
+                    db_last_seen = db_time.timestamp()
                 elif db_timestamp:
-                    last_seen_time = float(db_timestamp)
+                    db_last_seen = float(db_timestamp)
+                else:
+                    db_last_seen = 0
+                # Use the MOST RECENT timestamp — don't let stale DB overwrite live data
+                last_seen_time = max(last_seen_time, db_last_seen)
             except:
                 pass
         
