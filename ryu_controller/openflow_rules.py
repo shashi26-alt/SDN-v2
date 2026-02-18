@@ -5,24 +5,29 @@ Generates OpenFlow rules for policy enforcement (allow, deny, redirect, quaranti
 
 import logging
 
-# Try to import Ryu, but make it optional
+# Try to import os-ken (Python 3.13+ compatible) or Ryu, but make it optional
 try:
-    from ryu.ofproto import ofproto_v1_3
-    from ryu.ofproto.ofproto_v1_3_parser import OFPMatch, OFPActionOutput, OFPInstructionActions
+    from os_ken.ofproto import ofproto_v1_3
+    from os_ken.ofproto.ofproto_v1_3_parser import OFPMatch, OFPActionOutput, OFPInstructionActions
     RYU_AVAILABLE = True
 except ImportError:
-    RYU_AVAILABLE = False
-    logger = logging.getLogger(__name__)
-    logger.warning("Ryu not available. OpenFlow features will be limited.")
-    # Create dummy classes
-    class ofproto_v1_3:
-        OFP_VERSION = 0x04
-    class OFPMatch:
-        pass
-    class OFPActionOutput:
-        pass
-    class OFPInstructionActions:
-        pass
+    try:
+        from ryu.ofproto import ofproto_v1_3
+        from ryu.ofproto.ofproto_v1_3_parser import OFPMatch, OFPActionOutput, OFPInstructionActions
+        RYU_AVAILABLE = True
+    except ImportError:
+        RYU_AVAILABLE = False
+        logger = logging.getLogger(__name__)
+        logger.warning("Ryu/os-ken not available. OpenFlow features will be limited.")
+        # Create dummy classes
+        class ofproto_v1_3:
+            OFP_VERSION = 0x04
+        class OFPMatch:
+            pass
+        class OFPActionOutput:
+            pass
+        class OFPInstructionActions:
+            pass
 
 logger = logging.getLogger(__name__)
 

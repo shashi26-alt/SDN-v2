@@ -7,31 +7,43 @@ import logging
 import threading
 import time
 
-# Try to import Ryu, but make it optional for testing
+# Try to import Ryu/os-ken, but make it optional for testing
+# os-ken is the Python 3.13+ compatible fork of Ryu with identical APIs
 try:
-    from ryu.base import app_manager
-    from ryu.controller import ofp_event
-    from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER, set_ev_cls
-    from ryu.ofproto import ofproto_v1_3
-    from ryu.lib.packet import packet, ethernet, ipv4, arp, tcp, udp
+    from os_ken.base import app_manager
+    from os_ken.controller import ofp_event
+    from os_ken.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER, set_ev_cls
+    from os_ken.ofproto import ofproto_v1_3
+    from os_ken.lib.packet import packet, ethernet, ipv4, arp, tcp, udp
+    # os-ken renamed RyuApp to OSKenApp — alias for compatibility
+    if not hasattr(app_manager, 'RyuApp') and hasattr(app_manager, 'OSKenApp'):
+        app_manager.RyuApp = app_manager.OSKenApp
     RYU_AVAILABLE = True
 except ImportError:
-    RYU_AVAILABLE = False
-    # Create dummy classes for testing
-    class app_manager:
-        class RyuApp:
-            pass
-    class ofp_event:
-        class EventOFPSwitchFeatures:
-            pass
-        class EventOFPPacketIn:
-            pass
-    CONFIG_DISPATCHER = MAIN_DISPATCHER = 0
-    def set_ev_cls(*args, **kwargs):
-        def decorator(func):
-            return func
-        return decorator
-    ofproto_v1_3 = type('obj', (object,), {'OFP_VERSION': 0x04})
+    try:
+        from ryu.base import app_manager
+        from ryu.controller import ofp_event
+        from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER, set_ev_cls
+        from ryu.ofproto import ofproto_v1_3
+        from ryu.lib.packet import packet, ethernet, ipv4, arp, tcp, udp
+        RYU_AVAILABLE = True
+    except ImportError:
+        RYU_AVAILABLE = False
+        # Create dummy classes for testing
+        class app_manager:
+            class RyuApp:
+                pass
+        class ofp_event:
+            class EventOFPSwitchFeatures:
+                pass
+            class EventOFPPacketIn:
+                pass
+        CONFIG_DISPATCHER = MAIN_DISPATCHER = 0
+        def set_ev_cls(*args, **kwargs):
+            def decorator(func):
+                return func
+            return decorator
+        ofproto_v1_3 = type('obj', (object,), {'OFP_VERSION': 0x04})
 
 from .openflow_rules import OpenFlowRuleGenerator
 from .traffic_redirector import TrafficRedirector

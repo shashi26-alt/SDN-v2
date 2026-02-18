@@ -297,20 +297,28 @@ else
     fi
 fi
 
-# Check Ryu (required - other components depend on it)
-if command -v ryu-manager &> /dev/null || $PYTHON_CMD -c "import ryu" 2>/dev/null; then
+# Check Ryu/os-ken (required - other components depend on it)
+# os-ken is the Python 3.13+ compatible fork of Ryu
+if $PYTHON_CMD -c "import os_ken" 2>/dev/null; then
     RYU_AVAILABLE=true
+    USING_OSKEN=true
+    echo -e "${GREEN}  ✅ os-ken SDN Controller (Python 3.13+ compatible)${NC}"
+elif command -v ryu-manager &> /dev/null || $PYTHON_CMD -c "import ryu" 2>/dev/null; then
+    RYU_AVAILABLE=true
+    USING_OSKEN=false
     echo -e "${GREEN}  ✅ Ryu SDN Controller${NC}"
 else
     RYU_AVAILABLE=false
-    echo -e "${YELLOW}  ⚠️  Ryu SDN Controller not found (required)${NC}"
-    echo -e "${YELLOW}     Installing Ryu (required for Zero Trust Framework)...${NC}"
-    if install_ryu; then
+    USING_OSKEN=false
+    echo -e "${YELLOW}  ⚠️  Ryu/os-ken SDN Controller not found (required)${NC}"
+    echo -e "${YELLOW}     Installing os-ken (required for Zero Trust Framework)...${NC}"
+    if install_package "os-ken" "os_ken" && install_package "eventlet" "eventlet"; then
         RYU_AVAILABLE=true
-        echo -e "${GREEN}  ✅ Ryu SDN Controller installed${NC}"
+        USING_OSKEN=true
+        echo -e "${GREEN}  ✅ os-ken SDN Controller installed${NC}"
     else
-        echo -e "${RED}  ❌ Failed to install Ryu SDN Controller${NC}"
-        echo -e "${RED}     Please install manually: pip install ryu eventlet${NC}"
+        echo -e "${RED}  ❌ Failed to install os-ken SDN Controller${NC}"
+        echo -e "${RED}     Please install manually: pip install os-ken eventlet${NC}"
         echo -e "${RED}     Or: pip3 install -r requirements.txt${NC}"
         exit 1
     fi
@@ -516,11 +524,19 @@ if [ "$RYU_AVAILABLE" = true ]; then
     # Set PYTHONPATH to include project root for imports
     export PYTHONPATH="${PYTHONPATH}:$(pwd)"
     
-    if command -v ryu-manager &> /dev/null; then
+    if [ "$USING_OSKEN" = true ]; then
+        if command -v osken-manager &> /dev/null; then
+            osken-manager --ofp-tcp-listen-port 6653 --verbose ryu_controller.sdn_policy_engine > logs/ryu.log 2>&1 &
+            RYU_PID=$!
+        else
+            $PYTHON_CMD -m os_ken.cmd.manager --ofp-tcp-listen-port 6653 --verbose ryu_controller.sdn_policy_engine > logs/ryu.log 2>&1 &
+            RYU_PID=$!
+        fi
+    elif command -v ryu-manager &> /dev/null; then
         ryu-manager --ofp-tcp-listen-port 6653 --verbose ryu_controller.sdn_policy_engine > logs/ryu.log 2>&1 &
         RYU_PID=$!
     else
-        $PYTHON_CMD -m ryu.app.simple_switch_13 ryu_controller.sdn_policy_engine > logs/ryu.log 2>&1 &
+        $PYTHON_CMD -m ryu.cmd.manager --ofp-tcp-listen-port 6653 --verbose ryu_controller.sdn_policy_engine > logs/ryu.log 2>&1 &
         RYU_PID=$!
     fi
     
@@ -767,16 +783,26 @@ while true; do
             echo -e "${YELLOW}   Attempting to restart Ryu...${NC}"
             # Try to restart Ryu
             export PYTHONPATH="${PYTHONPATH}:$(pwd)"
-            if command -v ryu-manager &> /dev/null; then
+            if [ "$USING_OSKEN" = true ]; then
+                if command -v osken-manager &> /dev/null; then
+                    osken-manager --ofp-tcp-listen-port 6653 --verbose ryu_controller.sdn_policy_engine >> logs/ryu.log 2>&1 &
+                else
+                    $PYTHON_CMD -m os_ken.cmd.manager --ofp-tcp-listen-port 6653 --verbose ryu_controller.sdn_policy_engine >> logs/ryu.log 2>&1 &
+                fi
+                RYU_PID=$!
+            elif command -v ryu-manager &> /dev/null; then
                 ryu-manager --ofp-tcp-listen-port 6653 --verbose ryu_controller.sdn_policy_engine >> logs/ryu.log 2>&1 &
                 RYU_PID=$!
-                sleep 3
-                if kill -0 $RYU_PID 2>/dev/null; then
-                    echo -e "${GREEN}✅ Ryu SDN Controller restarted (PID: $RYU_PID)${NC}"
-                    RYU_STOPPED_REPORTED="false"
-                else
-                    echo -e "${RED}❌ Failed to restart Ryu SDN Controller${NC}"
-                fi
+            else
+                $PYTHON_CMD -m ryu.cmd.manager --ofp-tcp-listen-port 6653 --verbose ryu_controller.sdn_policy_engine >> logs/ryu.log 2>&1 &
+                RYU_PID=$!
+            fi
+            sleep 3
+            if kill -0 $RYU_PID 2>/dev/null; then
+                echo -e "${GREEN}✅ Ryu SDN Controller restarted (PID: $RYU_PID)${NC}"
+                RYU_STOPPED_REPORTED="false"
+            else
+                echo -e "${RED}❌ Failed to restart Ryu SDN Controller${NC}"
             fi
         fi
     fi
