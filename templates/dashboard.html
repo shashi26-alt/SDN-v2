@@ -1595,21 +1595,37 @@
 
         <!-- Device Approval Tab -->
         <section id="approval" class="tab-content">
-            <div class="grid-container">
-                <div class="card">
-                    <h3>⏳ Pending Approvals</h3>
-                    <div class="metric-value" id="pending-count">0</div>
-                    <div class="metric-label">Devices Awaiting Review</div>
-                </div>
-                <div class="card">
-                    <h3>✅ Approved Today</h3>
-                    <div class="metric-value" id="approved-today">0</div>
-                    <div class="metric-label">Devices Approved</div>
-                </div>
-                <div class="card">
-                    <h3>❌ Rejected Today</h3>
-                    <div class="metric-value" id="rejected-today">0</div>
-                    <div class="metric-label">Devices Rejected</div>
+            <div class="card">
+                <h3>📊 Device Approval Overview</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-icon">⏳</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="pending-count">0</div>
+                            <div class="stat-label">Pending Approvals</div>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="approved-today">0</div>
+                            <div class="stat-label">Approved Today</div>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-icon">❌</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="rejected-today">0</div>
+                            <div class="stat-label">Rejected Today</div>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-icon">📋</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="total-processed">0</div>
+                            <div class="stat-label">Total Processed</div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="card" style="margin-top: 1rem;">
@@ -1733,12 +1749,26 @@
                         type: 'continuous'
                     }
                 },
+                interaction: {
+                    dragNodes: true,
+                    dragView: true,
+                    zoomView: true,
+                    hover: true
+                },
                 physics: {
-                    stabilization: false,
+                    enabled: true,
+                    stabilization: {
+                        enabled: true,
+                        iterations: 150,
+                        updateInterval: 25,
+                        fit: true
+                    },
                     barnesHut: {
-                        gravitationalConstant: -80000,
-                        springConstant: 0.001,
-                        springLength: 200
+                        gravitationalConstant: -3000,
+                        centralGravity: 0.3,
+                        springConstant: 0.04,
+                        springLength: 150,
+                        damping: 0.09
                     }
                 },
                 groups: {
@@ -1807,7 +1837,14 @@
             window.networkNodes = new vis.DataSet();
             window.networkEdges = new vis.DataSet();
 
-            return new vis.Network(container, { nodes: window.networkNodes, edges: window.networkEdges }, options);
+            const net = new vis.Network(container, { nodes: window.networkNodes, edges: window.networkEdges }, options);
+
+            // Once the layout is stabilized, turn off physics so nodes stay put
+            net.once('stabilizationIterationsDone', function () {
+                net.setOptions({ physics: { enabled: false } });
+            });
+
+            return net;
         }
 
         let network = initializeNetwork();
@@ -2275,24 +2312,42 @@
                 }
             })) : [];
 
-            // Incrementally update DataSets to maintain stabilization and zoom
+            // Incrementally update DataSets — only re-run physics if new nodes appear
             if (window.networkNodes && window.networkEdges) {
-                // Remove nodes that are no longer present
                 const currentNodeIds = window.networkNodes.getIds();
                 const newNodeIds = nodes.map(n => n.id);
+
+                // Remove nodes that are no longer present
                 const nodesToRemove = currentNodeIds.filter(id => !newNodeIds.includes(id));
                 window.networkNodes.remove(nodesToRemove);
 
-                // Update or add new nodes
+                // Detect truly new nodes (not just updates)
+                const addedNodes = newNodeIds.filter(id => !currentNodeIds.includes(id));
+
+                // Update all node properties (color, group, label, etc.)
                 window.networkNodes.update(nodes);
 
-                // Edges: simple replace is usually fine, but update is smoother
-                // For simplicity + correctness with dynamic edges, clear/add for edges is often acceptable 
-                // if nodes are stable, but let's try update for edges too if we can match IDs.
-                // Since edge IDs aren't persistent in `get_topology`, we clear/add edges 
-                // BUT updating nodes is the key to stopping the "physics jiggle".
-                window.networkEdges.clear();
-                window.networkEdges.add(edges);
+                // Smart edge update: build a key set to avoid clear/add churn
+                const currentEdgeKeys = new Set(
+                    window.networkEdges.get().map(e => e.from + '->' + e.to)
+                );
+                const newEdgeKeys = new Set(edges.map(e => e.from + '->' + e.to));
+                const edgesChanged = currentEdgeKeys.size !== newEdgeKeys.size ||
+                    [...newEdgeKeys].some(k => !currentEdgeKeys.has(k));
+
+                if (edgesChanged) {
+                    window.networkEdges.clear();
+                    window.networkEdges.add(edges);
+                }
+
+                // Only re-stabilize layout when brand-new nodes appear
+                if (addedNodes.length > 0 || nodesToRemove.length > 0) {
+                    network.setOptions({ physics: { enabled: true } });
+                    network.once('stabilizationIterationsDone', function () {
+                        network.setOptions({ physics: { enabled: false } });
+                    });
+                    network.stabilize(100);
+                }
             } else {
                 network.setData({
                     nodes: new vis.DataSet(nodes),
@@ -3442,6 +3497,23 @@
                     });
                     html += '</tbody></table>';
                     container.innerHTML = html;
+
+                    // Update approval stats from history data
+                    const today = new Date().toDateString();
+                    let approvedToday = 0, rejectedToday = 0;
+                    history.forEach(entry => {
+                        const entryDate = new Date(entry.timestamp).toDateString();
+                        if (entryDate === today) {
+                            if (entry.action === 'approved') approvedToday++;
+                            else if (entry.action === 'rejected') rejectedToday++;
+                        }
+                    });
+                    const approvedEl = document.getElementById('approved-today');
+                    const rejectedEl = document.getElementById('rejected-today');
+                    const totalEl = document.getElementById('total-processed');
+                    if (approvedEl) approvedEl.textContent = approvedToday;
+                    if (rejectedEl) rejectedEl.textContent = rejectedToday;
+                    if (totalEl) totalEl.textContent = history.length;
                 })
                 .catch(err => {
                     console.error('Error loading device history:', err);
