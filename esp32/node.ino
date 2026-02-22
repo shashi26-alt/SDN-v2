@@ -2,7 +2,6 @@
 #include <HTTPClient.h>
 #include <WiFi.h>
 
-
 // Gateway Access Point Configuration
 const char *ssid = "ESP32-AP";     // Must match gateway AP name
 const char *password = "12345678"; // Must match gateway AP password
@@ -68,7 +67,14 @@ void setup() {
     }
   }
 
-  Serial.println("\n[Node] Step 2: Requesting authentication token...");
+  // Stagger startup to avoid colliding with other nodes at gateway
+  int startupDelay = random(2000, 5000);
+  Serial.print("\n[Node] Waiting ");
+  Serial.print(startupDelay);
+  Serial.println("ms before requesting token (stagger)...");
+  delay(startupDelay);
+
+  Serial.println("[Node] Step 2: Requesting authentication token...");
   requestToken();
 
   Serial.println("\n========================================");

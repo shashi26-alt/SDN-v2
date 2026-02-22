@@ -22,6 +22,7 @@ import random
 import threading
 import os
 import logging
+import sqlite3
 
 # Try to import DeviceOnboarding, but make it optional
 try:
@@ -2531,6 +2532,121 @@ def remove_device_redirect(device_id):
             'status': 'error',
             'message': str(e)
         }), 500
+
+@app.route('/api/system_reset', methods=['POST'])
+def system_reset():
+    """
+    Full system reset — clears all device state, databases, certificates,
+    and in-memory tracking. The controller stays running but behaves as if
+    freshly started. Useful for testing / demo cycles.
+    """
+    global authorized_devices, device_data, timestamps, last_seen
+    global device_tokens, packet_counts, failed_token_requests
+    global mac_addresses, policy_logs, suspicious_device_alerts
+    global _last_trust_reduction, ml_engine, ml_monitoring_active, sdn_policies
+
+    app.logger.warning("🔄 SYSTEM RESET requested — clearing ALL state...")
+    errors = []
+
+    # 1. Clear in-memory tracking structures
+    authorized_devices.clear()
+    device_data.clear()
+    timestamps.clear()
+    last_seen.clear()
+    device_tokens.clear()
+    packet_counts.clear()
+    failed_token_requests.clear()
+    mac_addresses.clear()
+    policy_logs.clear()
+    suspicious_device_alerts.clear()
+    _last_trust_reduction.clear()
+
+    # Reset SDN policies to disabled
+    for key in sdn_policies:
+        sdn_policies[key] = False
+
+    # 2. Clear identity database (identity.db)
+    if ONBOARDING_AVAILABLE and onboarding and hasattr(onboarding, 'identity_db'):
+        try:
+            db = onboarding.identity_db
+            conn = sqlite3.connect(db.db_path)
+            cursor = conn.cursor()
+            # Get all table names and delete their contents
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = cursor.fetchall()
+            for (table_name,) in tables:
+                cursor.execute(f"DELETE FROM {table_name}")
+            conn.commit()
+            conn.close()
+            app.logger.info("  ✅ Identity database cleared")
+        except Exception as e:
+            errors.append(f"identity_db: {e}")
+            app.logger.error(f"  ❌ Failed to clear identity database: {e}")
+
+    # 3. Clear pending devices database (pending_devices.db)
+    pm = get_pending_manager()
+    if pm and hasattr(pm, 'db_path'):
+        try:
+            conn = sqlite3.connect(pm.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = cursor.fetchall()
+            for (table_name,) in tables:
+                cursor.execute(f"DELETE FROM {table_name}")
+            conn.commit()
+            conn.close()
+            app.logger.info("  ✅ Pending devices database cleared")
+        except Exception as e:
+            errors.append(f"pending_db: {e}")
+            app.logger.error(f"  ❌ Failed to clear pending devices database: {e}")
+
+    # 4. Delete device certificate files (but keep CA)
+    try:
+        certs_dir = os.path.join(os.path.dirname(__file__), 'certs')
+        if os.path.exists(certs_dir):
+            removed_count = 0
+            for filename in os.listdir(certs_dir):
+                # Keep CA files (ca_cert.pem, ca_key.pem) and any config files
+                if filename.startswith('ca_') or filename.endswith('.cnf') or filename.endswith('.srl'):
+                    continue
+                filepath = os.path.join(certs_dir, filename)
+                if os.path.isfile(filepath):
+                    os.remove(filepath)
+                    removed_count += 1
+            app.logger.info(f"  ✅ Removed {removed_count} device certificate files")
+    except Exception as e:
+        errors.append(f"certs: {e}")
+        app.logger.error(f"  ❌ Failed to clean certificate files: {e}")
+
+    # 5. Reset trust scorer
+    if TRUST_SCORER_AVAILABLE and trust_scorer:
+        try:
+            trust_scorer.device_scores.clear()
+            trust_scorer.score_history.clear()
+            app.logger.info("  ✅ Trust scorer reset")
+        except Exception as e:
+            errors.append(f"trust_scorer: {e}")
+            app.logger.error(f"  ❌ Failed to reset trust scorer: {e}")
+
+    # 6. Reset ML engine detection history
+    if ml_engine and hasattr(ml_engine, 'network_stats'):
+        try:
+            ml_engine.network_stats = {}
+            if hasattr(ml_engine, 'detection_history'):
+                ml_engine.detection_history = []
+            app.logger.info("  ✅ ML engine stats reset")
+        except Exception as e:
+            errors.append(f"ml_engine: {e}")
+
+    app.logger.warning("🔄 SYSTEM RESET complete — system is fresh")
+
+    return json.dumps({
+        'status': 'success',
+        'message': 'System reset complete — all devices, certificates, and state cleared',
+        'errors': errors if errors else None,
+        'note': 'ESP32 devices will auto-reconnect and appear as new pending devices'
+    }), 200
+
 
 if __name__ == '__main__':
     # Start ML engine before running the app (optional)

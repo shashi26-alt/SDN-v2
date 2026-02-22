@@ -91,8 +91,15 @@ void setup() {
     }
   }
 
+  // Stagger startup to avoid colliding with other nodes at gateway
+  int startupDelay = random(5000, 8000);
+  Serial.print("\n[ATTACKER] Waiting ");
+  Serial.print(startupDelay);
+  Serial.println("ms before authenticating (stagger)...");
+  delay(startupDelay);
+
   // Request token
-  Serial.println("\n[ATTACKER] Phase 0: Authenticating...");
+  Serial.println("[ATTACKER] Phase 0: Authenticating...");
   requestToken();
 
   startTime = millis();

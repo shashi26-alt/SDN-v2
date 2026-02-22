@@ -1,7 +1,7 @@
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
-
+#include <WebServer.h>
 
 // Gateway Access Point Configuration
 const char *ap_ssid = "ESP32-AP";     // AP name for nodes to connect
@@ -16,8 +16,8 @@ const char *controller_ip =
     "172.20.10.3"; // Raspberry Pi IP where controller.py runs
 const int controller_port = 5000;
 
-// Gateway HTTP Server
-WiFiServer server(80);
+// Gateway HTTP Server — WebServer handles concurrent clients properly
+WebServer server(80);
 
 void setup() {
   Serial.begin(115200);
@@ -32,7 +32,8 @@ void setup() {
 
   // Start Access Point for nodes
   Serial.println("[Gateway] Starting Access Point...");
-  WiFi.softAP(ap_ssid, ap_password);
+  WiFi.softAP(ap_ssid, ap_password, 1, 0, 4); // channel 1, not hidden, max 4 connections
+  delay(100); // Let soft-AP stabilize
   IPAddress apIP = WiFi.softAPIP();
   Serial.print("[Gateway] AP SSID: ");
   Serial.println(ap_ssid);
@@ -69,14 +70,26 @@ void setup() {
     Serial.println("[Gateway] AP is still active for local nodes");
   }
 
-  // Start HTTP server for nodes
+  // Register route handlers
+  server.on("/get_token", HTTP_POST, handleGetToken);
+  server.on("/auth", HTTP_POST, handleAuth);
+  server.on("/data", HTTP_POST, handleData);
+  server.on("/onboard", HTTP_POST, handleOnboard);
+  server.on("/finalize_onboarding", HTTP_POST, handleFinalizeOnboarding);
+  server.onNotFound(handleNotFound);
+
+  // Start HTTP server
   server.begin();
   Serial.println("\n[Gateway] HTTP Server started on port 80");
+  Serial.println("[Gateway] Routes: /get_token, /auth, /data, /onboard, /finalize_onboarding");
   Serial.println("[Gateway] Ready to receive node connections");
   Serial.println("========================================\n");
 }
 
 void loop() {
+  // Handle incoming HTTP requests (non-blocking, event-driven)
+  server.handleClient();
+
   // Monitor WiFi connection status
   static unsigned long lastWiFiCheck = 0;
   if (millis() - lastWiFiCheck > 10000) // Check every 10 seconds
@@ -102,179 +115,155 @@ void loop() {
     }
   }
 
-  WiFiClient client = server.available();
-  if (client) {
-    Serial.println("\n--- [Gateway] New Node Connection ---");
-    Serial.print("[Gateway] Node IP: ");
-    Serial.println(client.remoteIP());
+  delay(2); // Minimal delay — WebServer handles timing
+}
 
-    // Read HTTP request headers and body
-    String requestHeaders = "";
-    String requestBody = "";
-    unsigned long timeout = millis() + 5000; // 5 second timeout
-    bool headersComplete = false;
-    int contentLength = 0;
-
-    // Read headers
-    while (client.connected() && millis() < timeout && !headersComplete) {
-      if (client.available()) {
-        String line = client.readStringUntil('\n');
-        requestHeaders += line;
-
-        // Check for Content-Length header
-        if (line.startsWith("Content-Length:")) {
-          contentLength = line.substring(15).toInt();
-        }
-
-        // Empty line indicates end of headers
-        if (line.length() <= 2) // Just \r\n
-        {
-          headersComplete = true;
-        }
-      }
-    }
-
-    // Read body if Content-Length is specified
-    if (headersComplete && contentLength > 0) {
-      unsigned long bodyTimeout = millis() + 2000;
-      while (client.connected() && millis() < bodyTimeout &&
-             requestBody.length() < contentLength) {
-        if (client.available()) {
-          char c = client.read();
-          requestBody += c;
-        }
-      }
-    } else if (headersComplete) {
-      // Try to read any remaining data (for requests without Content-Length)
-      delay(100); // Small delay to let data arrive
-      while (client.available()) {
-        char c = client.read();
-        requestBody += c;
-      }
-    }
-
-    Serial.print("[Gateway] Request headers: ");
-    Serial.println(
-        requestHeaders.substring(0, min(300, (int)requestHeaders.length())));
-    Serial.print("[Gateway] Request body length: ");
-    Serial.println(requestBody.length());
-
-    // Parse request to determine endpoint
-    String endpoint = "";
-    String jsonPayload = "";
-
-    if (requestHeaders.indexOf("POST /get_token") >= 0) {
-      endpoint = "/get_token";
-      Serial.println("[Gateway] 📝 Node requesting TOKEN");
-    } else if (requestHeaders.indexOf("POST /auth") >= 0) {
-      endpoint = "/auth";
-      Serial.println("[Gateway] 🔐 Node authenticating SESSION");
-    } else if (requestHeaders.indexOf("POST /data") >= 0) {
-      endpoint = "/data";
-      Serial.println("[Gateway] 📊 Node sending DATA");
-    } else if (requestHeaders.indexOf("POST /onboard") >= 0) {
-      endpoint = "/onboard";
-      Serial.println("[Gateway] 🚀 Node requesting ONBOARDING");
-    } else if (requestHeaders.indexOf("POST /finalize_onboarding") >= 0) {
-      endpoint = "/finalize_onboarding";
-      Serial.println("[Gateway] ✅ Node finalizing ONBOARDING");
-    } else {
-      Serial.println("[Gateway] ⚠️ Unknown request type");
-    }
-
-    // Extract JSON payload from request body
-    if (requestBody.length() > 0) {
-      int jsonStart = requestBody.indexOf('{');
-      int jsonEnd = requestBody.lastIndexOf('}') + 1;
-      if (jsonStart >= 0 && jsonEnd > jsonStart) {
-        jsonPayload = requestBody.substring(jsonStart, jsonEnd);
-        Serial.print("[Gateway] Payload: ");
-        Serial.println(jsonPayload);
-      } else {
-        Serial.println("[Gateway] ⚠️ No JSON found in body");
-      }
-    } else {
-      Serial.println("[Gateway] ⚠️ Empty request body");
-    }
-
-    // Forward to controller if WiFi is connected
-    if (WiFi.status() == WL_CONNECTED) {
-      if (endpoint.length() > 0 && jsonPayload.length() > 0) {
-        String controllerUrl = "http://" + String(controller_ip) + ":" +
-                               String(controller_port) + endpoint;
-        Serial.print("[Gateway] Forwarding to: ");
-        Serial.println(controllerUrl);
-
-        HTTPClient http;
-        http.begin(controllerUrl);
-        http.addHeader("Content-Type", "application/json");
-        http.setTimeout(5000);
-
-        int httpCode = http.POST(jsonPayload);
-        String response = http.getString();
-
-        Serial.print("[Gateway] Controller response code: ");
-        Serial.println(httpCode);
-        Serial.print("[Gateway] Controller response: ");
-        Serial.println(response);
-
-        // Determine HTTP status line to return to the node
-        int statusCode = httpCode > 0 ? httpCode : 502;
-        String statusText = "OK";
-        if (statusCode == 400)
-          statusText = "Bad Request";
-        else if (statusCode == 401)
-          statusText = "Unauthorized";
-        else if (statusCode == 403)
-          statusText = "Forbidden";
-        else if (statusCode == 404)
-          statusText = "Not Found";
-        else if (statusCode == 500)
-          statusText = "Internal Server Error";
-        else if (statusCode == 502)
-          statusText = "Bad Gateway";
-        else if (statusCode == 503)
-          statusText = "Service Unavailable";
-
-        // Send controller's status code and body back to node
-        client.print("HTTP/1.1 ");
-        client.print(statusCode);
-        client.print(" ");
-        client.println(statusText);
-        client.println("Content-Type: application/json");
-        client.println("Connection: close");
-        client.println();
-        client.println(response);
-
-        http.end();
-      } else {
-        Serial.println(
-            "[Gateway] ❌ Invalid request - missing endpoint or payload");
-        Serial.print("[Gateway] Endpoint: ");
-        Serial.println(endpoint.length() > 0 ? endpoint : "EMPTY");
-        Serial.print("[Gateway] Payload: ");
-        Serial.println(jsonPayload.length() > 0 ? jsonPayload : "EMPTY");
-        client.println("HTTP/1.1 400 Bad Request");
-        client.println("Content-Type: application/json");
-        client.println("Connection: close");
-        client.println();
-        client.println("{\"error\":\"Invalid request format\"}");
-      }
-    } else {
-      Serial.println("[Gateway] ❌ WiFi not connected to controller network");
-      Serial.print("[Gateway] WiFi status: ");
-      Serial.println(WiFi.status());
-      client.println("HTTP/1.1 503 Service Unavailable");
-      client.println("Content-Type: application/json");
-      client.println("Connection: close");
-      client.println();
-      client.println("{\"error\":\"Gateway not connected to controller\"}");
-    }
-
-    delay(10);
-    client.stop();
-    Serial.println("[Gateway] Connection closed");
+// ===== Forward a request to the controller and return the response =====
+String forwardToController(String endpoint, String jsonPayload, int &outStatusCode) {
+  if (WiFi.status() != WL_CONNECTED) {
+    outStatusCode = 503;
+    return "{\"error\":\"Gateway not connected to controller\"}";
   }
 
-  delay(100); // Small delay to prevent watchdog issues
+  String controllerUrl = "http://" + String(controller_ip) + ":" +
+                         String(controller_port) + endpoint;
+  Serial.print("[Gateway] Forwarding to: ");
+  Serial.println(controllerUrl);
+
+  HTTPClient http;
+  http.begin(controllerUrl);
+  http.addHeader("Content-Type", "application/json");
+  http.setTimeout(8000);
+
+  int httpCode = http.POST(jsonPayload);
+  String response = http.getString();
+  http.end();
+
+  outStatusCode = httpCode > 0 ? httpCode : 502;
+
+  Serial.print("[Gateway] Controller response code: ");
+  Serial.println(httpCode);
+  Serial.print("[Gateway] Controller response: ");
+  Serial.println(response);
+
+  return response;
+}
+
+// ===== Route Handlers =====
+
+void handleGetToken() {
+  Serial.println("\n--- [Gateway] New Request: /get_token ---");
+  Serial.print("[Gateway] Client IP: ");
+  Serial.println(server.client().remoteIP());
+  Serial.println("[Gateway] 📝 Node requesting TOKEN");
+
+  String body = server.arg("plain");
+  Serial.print("[Gateway] Payload: ");
+  Serial.println(body);
+
+  if (body.length() == 0) {
+    server.send(400, "application/json", "{\"error\":\"Empty request body\"}");
+    return;
+  }
+
+  int statusCode;
+  String response = forwardToController("/get_token", body, statusCode);
+  server.send(statusCode, "application/json", response);
+  Serial.println("[Gateway] Response sent to node");
+}
+
+void handleAuth() {
+  Serial.println("\n--- [Gateway] New Request: /auth ---");
+  Serial.print("[Gateway] Client IP: ");
+  Serial.println(server.client().remoteIP());
+  Serial.println("[Gateway] 🔐 Node authenticating SESSION");
+
+  String body = server.arg("plain");
+  Serial.print("[Gateway] Payload: ");
+  Serial.println(body);
+
+  if (body.length() == 0) {
+    server.send(400, "application/json", "{\"error\":\"Empty request body\"}");
+    return;
+  }
+
+  int statusCode;
+  String response = forwardToController("/auth", body, statusCode);
+  server.send(statusCode, "application/json", response);
+  Serial.println("[Gateway] Response sent to node");
+}
+
+void handleData() {
+  Serial.println("\n--- [Gateway] New Request: /data ---");
+  Serial.print("[Gateway] Client IP: ");
+  Serial.println(server.client().remoteIP());
+  Serial.println("[Gateway] 📊 Node sending DATA");
+
+  String body = server.arg("plain");
+
+  if (body.length() == 0) {
+    server.send(400, "application/json", "{\"error\":\"Empty request body\"}");
+    return;
+  }
+
+  // Log payload but truncate if too long (attack data can be large)
+  Serial.print("[Gateway] Payload (");
+  Serial.print(body.length());
+  Serial.print(" bytes): ");
+  Serial.println(body.substring(0, min(200, (int)body.length())));
+
+  int statusCode;
+  String response = forwardToController("/data", body, statusCode);
+  server.send(statusCode, "application/json", response);
+}
+
+void handleOnboard() {
+  Serial.println("\n--- [Gateway] New Request: /onboard ---");
+  Serial.print("[Gateway] Client IP: ");
+  Serial.println(server.client().remoteIP());
+  Serial.println("[Gateway] 🚀 Node requesting ONBOARDING");
+
+  String body = server.arg("plain");
+  Serial.print("[Gateway] Payload: ");
+  Serial.println(body);
+
+  if (body.length() == 0) {
+    server.send(400, "application/json", "{\"error\":\"Empty request body\"}");
+    return;
+  }
+
+  int statusCode;
+  String response = forwardToController("/onboard", body, statusCode);
+  server.send(statusCode, "application/json", response);
+  Serial.println("[Gateway] Response sent to node");
+}
+
+void handleFinalizeOnboarding() {
+  Serial.println("\n--- [Gateway] New Request: /finalize_onboarding ---");
+  Serial.print("[Gateway] Client IP: ");
+  Serial.println(server.client().remoteIP());
+  Serial.println("[Gateway] ✅ Node finalizing ONBOARDING");
+
+  String body = server.arg("plain");
+  Serial.print("[Gateway] Payload: ");
+  Serial.println(body);
+
+  if (body.length() == 0) {
+    server.send(400, "application/json", "{\"error\":\"Empty request body\"}");
+    return;
+  }
+
+  int statusCode;
+  String response = forwardToController("/finalize_onboarding", body, statusCode);
+  server.send(statusCode, "application/json", response);
+  Serial.println("[Gateway] Response sent to node");
+}
+
+void handleNotFound() {
+  Serial.println("\n--- [Gateway] Unknown Request ---");
+  Serial.print("[Gateway] URI: ");
+  Serial.println(server.uri());
+  Serial.print("[Gateway] Method: ");
+  Serial.println(server.method() == HTTP_POST ? "POST" : "OTHER");
+  server.send(404, "application/json", "{\"error\":\"Unknown endpoint\"}");
 }
