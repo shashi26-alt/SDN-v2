@@ -219,6 +219,16 @@ except Exception as e:
     TRUST_SCORER_AVAILABLE = False
     print(f"⚠️  Trust Scorer not available: {e}")
 
+# Hydrate trust scores for all known authorized devices at startup
+if TRUST_SCORER_AVAILABLE and trust_scorer:
+    _hydrated_count = 0
+    for _dev_id in list(authorized_devices.keys()):
+        if trust_scorer.get_trust_score(_dev_id) is None:
+            trust_scorer.initialize_device(_dev_id)
+            _hydrated_count += 1
+    if _hydrated_count > 0:
+        print(f" [OK] Trust scores initialized for {_hydrated_count} authorized devices")
+
 
 @app.route('/ml/health')
 def ml_health():
@@ -333,6 +343,12 @@ def onboard_device():
                 last_seen[device_id] = time.time()
             if device_id not in packet_counts:
                 packet_counts[device_id] = []
+            
+            # Initialize trust score for newly onboarded device
+            if TRUST_SCORER_AVAILABLE and trust_scorer:
+                if trust_scorer.get_trust_score(device_id) is None:
+                    trust_scorer.initialize_device(device_id)
+                    app.logger.info(f"✅ Trust score initialized for onboarded device {device_id}: 70")
             
             app.logger.info(f"Device {device_id} onboarded. Profiling will auto-finalize after 5 minutes.")
             return json.dumps(result), 200
@@ -585,6 +601,12 @@ def get_token():
     if mac_address:  # Store the MAC address if provided
         mac_addresses[device_id] = mac_address
     
+    # Initialize trust score for authenticated device
+    if TRUST_SCORER_AVAILABLE and trust_scorer:
+        if trust_scorer.get_trust_score(device_id) is None:
+            trust_scorer.initialize_device(device_id)
+            app.logger.info(f"✅ Trust score initialized for authenticated device {device_id}: 70")
+    
     app.logger.info(f"Token generated successfully for device {device_id}")
     return json.dumps({'token': token})
 
@@ -680,6 +702,10 @@ def data():
     device_tokens[device_id]["last_activity"] = current_time
     last_seen[device_id] = current_time
     device_data[device_id].append(1)
+    # Ensure device has a trust score entry (catches devices authorized via DB hydration)
+    if TRUST_SCORER_AVAILABLE and trust_scorer:
+        if trust_scorer.get_trust_score(device_id) is None:
+            trust_scorer.initialize_device(device_id)
     if len(timestamps) == 0 or current_time - timestamps[-1] > 1:
         timestamps.append(current_time)
     # Feed packet to ML engine for anomaly detection with device context
@@ -1665,6 +1691,10 @@ def get_trust_scores():
         
         # Use live TrustScorer for real-time scores
         if TRUST_SCORER_AVAILABLE and trust_scorer:
+            # Auto-initialize any known devices not yet tracked by the trust scorer
+            for dev_id in set(list(authorized_devices.keys()) + list(device_data.keys())):
+                if trust_scorer.get_trust_score(dev_id) is None:
+                    trust_scorer.initialize_device(dev_id)
             scores = trust_scorer.get_all_scores()
         # Fallback to database
         elif ONBOARDING_AVAILABLE and onboarding:

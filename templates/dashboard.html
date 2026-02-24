@@ -1218,6 +1218,15 @@
                     <div class="metric-label" style="margin-top: 0.5rem;">Redirected Devices: <span
                             id="overview-redirected-devices">0</span></div>
                 </div>
+                <div class="card">
+                    <h3>⭐ Trust Score Status</h3>
+                    <div class="metric-value" id="overview-avg-trust" style="color: var(--primary-color);">--</div>
+                    <div class="metric-label">Average Trust Score</div>
+                    <div style="margin-top: 0.5rem; font-size: 0.875rem;">
+                        <span style="color: var(--success-color);" id="overview-trusted-count">0</span> trusted |
+                        <span style="color: var(--danger-color);" id="overview-suspicious-count">0</span> suspicious
+                    </div>
+                </div>
             </div>
             <div class="card" style="margin-top: 1rem;">
                 <h3>🗺️ Network Topology</h3>
@@ -2119,6 +2128,24 @@
                         if (threatsCaptured) threatsCaptured.textContent = data.total_threats || 0;
                         if (redirectedDevices) redirectedDevices.textContent = data.redirected_count || 0;
                     }
+                })
+                .catch(() => { });
+
+            // Update trust score overview
+            fetch('/api/trust_scores')
+                .then(response => response.json())
+                .then(data => {
+                    const scores = data.scores || {};
+                    const scoresList = Object.values(scores);
+                    const avgScore = scoresList.length > 0
+                        ? Math.round(scoresList.reduce((sum, s) => sum + s, 0) / scoresList.length)
+                        : 0;
+                    const overviewAvgTrust = document.getElementById('overview-avg-trust');
+                    const overviewTrustedCount = document.getElementById('overview-trusted-count');
+                    const overviewSuspiciousCount = document.getElementById('overview-suspicious-count');
+                    if (overviewAvgTrust) overviewAvgTrust.textContent = avgScore;
+                    if (overviewTrustedCount) overviewTrustedCount.textContent = scoresList.filter(s => s >= 70).length;
+                    if (overviewSuspiciousCount) overviewSuspiciousCount.textContent = scoresList.filter(s => s < 50).length;
                 })
                 .catch(() => { });
         }
