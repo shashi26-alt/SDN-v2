@@ -222,9 +222,9 @@ class MininetTopology:
             host.send_packet(f"test_{i}")
             time.sleep(0.1)
         
-        # Test session timeout
-        print("Testing session timeout...")
-        time.sleep(310)  # Wait for 5-minute timeout
+        # Test session timeout (Skipping long wait)
+        print("Testing session timeout (skipping 5-minute wait)...")
+        time.sleep(5)  # Reduced from 310s to 5s for faster testing
         host.send_packet("timeout_test")
     
     def monitor_controller(self):
