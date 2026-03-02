@@ -2508,7 +2508,6 @@
 
                         // Update network overview if available
                         if (stats.network) {
-                            // Could add network-level stats display here if needed
                             console.log('Network stats:', stats.network);
                         }
                     }
@@ -2516,6 +2515,9 @@
                 .catch(error => {
                     console.error('Error fetching network statistics:', error);
                 });
+
+            // Also update ML status/metrics (keeps ML tab stats live)
+            updateMLMetrics();
         }
 
         function updatePolicyLogs() {
@@ -2941,11 +2943,14 @@
             updateMLMetrics();
             updateMLDetections();
 
-            // Set up periodic updates
+            // Set up periodic updates — always run regardless of active tab
             mlUpdateInterval = setInterval(() => {
-                if (mlMonitoringActive && document.getElementById('ml-engine').classList.contains('active')) {
+                if (mlMonitoringActive) {
                     updateMLMetrics();
-                    updateMLDetections();
+                    // Only update detections when ML tab is visible
+                    if (document.getElementById('ml-engine').classList.contains('active')) {
+                        updateMLDetections();
+                    }
                 }
             }, 5000); // Update every 5 seconds
         }
