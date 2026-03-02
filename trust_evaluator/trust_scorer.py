@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class TrustScorer:
     """Calculates and manages dynamic trust scores for devices"""
     
-    def __init__(self, initial_score: int = 70, identity_db=None):
+    def __init__(self, initial_score: int = 0, identity_db=None):
         """
         Initialize trust scorer
         

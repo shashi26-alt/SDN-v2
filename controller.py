@@ -224,14 +224,16 @@ elif PENDING_MANAGER_AVAILABLE:
 try:
     from trust_evaluator.trust_scorer import TrustScorer
     trust_scorer = TrustScorer(
-        initial_score=70,
+        initial_score=0,
         identity_db=onboarding.identity_db if (ONBOARDING_AVAILABLE and onboarding) else None
     )
     TRUST_SCORER_AVAILABLE = True
+    MAX_TRUST_SCORE = 100  # Maximum trust score devices can reach through normal behavior
     print(" [OK] Trust Scorer initialized")
 except Exception as e:
     trust_scorer = None
     TRUST_SCORER_AVAILABLE = False
+    MAX_TRUST_SCORE = 100
     print(f"⚠️  Trust Scorer not available: {e}")
 
 # Hydrate trust scores for all known authorized devices at startup
@@ -829,8 +831,8 @@ def data():
             )
             if not is_honeypot_redirected:
                 current_score = trust_scorer.get_trust_score(device_id)
-                # Gradually recover trust for normal traffic (only non-redirected devices)
-                if current_score is not None and current_score < trust_scorer.initial_score:
+                # Gradually increase trust for normal traffic up to MAX_TRUST_SCORE (100)
+                if current_score is not None and current_score < MAX_TRUST_SCORE:
                     trust_scorer.adjust_trust_score(device_id, +2, "Normal behavior observed")
         except Exception:
             pass
