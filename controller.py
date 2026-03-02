@@ -365,7 +365,7 @@ def onboard_device():
             if TRUST_SCORER_AVAILABLE and trust_scorer:
                 if trust_scorer.get_trust_score(device_id) is None:
                     trust_scorer.initialize_device(device_id)
-                    app.logger.info(f"✅ Trust score initialized for onboarded device {device_id}: 70")
+                    app.logger.info(f"✅ Trust score initialized for onboarded device {device_id}: 0")
             
             app.logger.info(f"Device {device_id} onboarded. Profiling will auto-finalize after 5 minutes.")
             return json.dumps(result), 200
@@ -633,7 +633,7 @@ def get_token():
     if TRUST_SCORER_AVAILABLE and trust_scorer:
         if trust_scorer.get_trust_score(device_id) is None:
             trust_scorer.initialize_device(device_id)
-            app.logger.info(f"✅ Trust score initialized for authenticated device {device_id}: 70")
+            app.logger.info(f"✅ Trust score initialized for authenticated device {device_id}: 0")
     
     app.logger.info(f"Token generated successfully for device {device_id}")
     return json.dumps({'token': token})
@@ -1222,8 +1222,8 @@ def get_topology_with_mac():
                "Unknown")
         
         # Get trust score and level for this device
-        node_trust_score = 70  # default
-        node_trust_level = 'trusted'
+        node_trust_score = 0  # default for new/unknown devices
+        node_trust_level = 'untrusted'
         if TRUST_SCORER_AVAILABLE and trust_scorer:
             ts = trust_scorer.get_trust_score(device_id)
             if ts is not None:
