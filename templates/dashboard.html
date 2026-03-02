@@ -1525,29 +1525,71 @@
 
         <!-- Honeypot Tab -->
         <section id="honeypot" class="tab-content">
+            <!-- Stats Row -->
             <div class="grid-container">
                 <div class="card">
-                    <h3>🍯 Honeypot Status</h3>
-                    <div class="metric-value" id="honeypot-status">Stopped</div>
-                    <div class="metric-label" id="honeypot-status-label">Container Status</div>
+                    <h3>🔴 Total Redirections</h3>
+                    <div class="metric-value" id="hp-total-redirections" style="color: #f44336;">0</div>
+                    <div class="metric-label">Devices sent to honeypot</div>
                 </div>
                 <div class="card">
-                    <h3>🎯 Threats Captured</h3>
-                    <div class="metric-value" id="threats-captured">0</div>
-                    <div class="metric-label">Total Threats</div>
+                    <h3>🚫 Active Blocked</h3>
+                    <div class="metric-value" id="hp-active-blocked" style="color: #ff9800;">0</div>
+                    <div class="metric-label">Currently blocked devices</div>
                 </div>
                 <div class="card">
-                    <h3>🚫 Blocked IPs</h3>
-                    <div class="metric-value" id="blocked-ips-count">0</div>
-                    <div class="metric-label">Auto-Blocked</div>
+                    <h3>🔒 Token Rejections</h3>
+                    <div class="metric-value" id="hp-token-blocks" style="color: #9c27b0;">0</div>
+                    <div class="metric-label">Reconnection attempts blocked</div>
+                </div>
+                <div class="card">
+                    <h3>🍯 Cowrie Status</h3>
+                    <div class="metric-value" id="honeypot-status" style="color: #607d8b;">Not Deployed</div>
+                    <div class="metric-label" id="honeypot-status-label">Docker Container</div>
                 </div>
             </div>
+
+            <!-- Cowrie Docker Controls -->
+            <div class="card" style="margin-bottom: 15px;">
+                <h3>🐋 Cowrie Honeypot Container</h3>
+                <p style="color: #aaa; margin: 8px 0;">Deploy a real Cowrie SSH/HTTP honeypot container to capture
+                    attacker interactions. Requires Docker Desktop.</p>
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <button onclick="deployCowrie()" class="btn"
+                        style="background: linear-gradient(135deg, #4caf50, #2e7d32); border: none; color: white; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                        🚀 Deploy Cowrie
+                    </button>
+                    <button onclick="stopCowrie()" class="btn"
+                        style="background: linear-gradient(135deg, #f44336, #c62828); border: none; color: white; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                        ⏹ Stop Cowrie
+                    </button>
+                </div>
+                <div id="cowrie-message"
+                    style="margin-top: 10px; display: none; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
+                </div>
+            </div>
+
+            <!-- Activity Feed -->
             <div class="card">
-                <h3>🔍 Recent Threats</h3>
-                <div class="scroll-container">
-                    <div id="recent-threats-list" class="alerts-list"></div>
+                <h3>📋 Honeypot Activity Feed</h3>
+                <div class="scroll-container" style="max-height: 400px; overflow-y: auto;">
+                    <table class="device-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Device</th>
+                                <th>Event</th>
+                                <th>Details</th>
+                                <th>Score</th>
+                                <th>Severity</th>
+                            </tr>
+                        </thead>
+                        <tbody id="honeypot-activity-feed"></tbody>
+                    </table>
                 </div>
             </div>
+
+            <!-- Mitigation Rules (kept from original) -->
             <div class="card">
                 <h3>🛡️ Mitigation Rules</h3>
                 <div class="scroll-container">
@@ -3106,87 +3148,127 @@
 
         // Honeypot Update Functions
         function updateHoneypotStatus() {
-            fetch('/api/honeypot/status')
-                .then(response => response.json())
-                .then(data => {
-                    // Check both 'status' and 'running' fields
-                    const status = data.status || (data.running ? 'running' : 'stopped');
-                    const running = status === 'running' || data.running === true;
+            Promise.all([
+                fetch('/api/honeypot/status?t=' + Date.now()).then(r => r.json()).catch(() => null),
+                fetch('/api/honeypot/logs?limit=50&t=' + Date.now()).then(r => r.json()).catch(() => null)
+            ]).then(([statusData, logsData]) => {
+                // Update stats cards
+                if (statusData && statusData.status === 'success') {
+                    const a = statusData.activity || {};
+                    const c = statusData.cowrie || {};
 
+                    const redirEl = document.getElementById('hp-total-redirections');
+                    const blockedEl = document.getElementById('hp-active-blocked');
+                    const tokenEl = document.getElementById('hp-token-blocks');
                     const statusEl = document.getElementById('honeypot-status');
                     const labelEl = document.getElementById('honeypot-status-label');
 
+                    if (redirEl) redirEl.textContent = a.total_redirections || 0;
+                    if (blockedEl) blockedEl.textContent = a.active_redirected_devices || 0;
+                    if (tokenEl) tokenEl.textContent = a.total_blocks || 0;
+
                     if (statusEl) {
-                        statusEl.textContent = running ? 'Running' : 'Stopped';
-                        statusEl.style.color = running ? '#4caf50' : '#f44336';
+                        if (c.running) {
+                            statusEl.textContent = 'Running';
+                            statusEl.style.color = '#4caf50';
+                        } else if (c.docker_available) {
+                            statusEl.textContent = 'Stopped';
+                            statusEl.style.color = '#ff9800';
+                        } else {
+                            statusEl.textContent = 'No Docker';
+                            statusEl.style.color = '#607d8b';
+                        }
                     }
-
                     if (labelEl) {
-                        labelEl.textContent = running ? 'Container Active' : 'Container Inactive';
+                        labelEl.textContent = c.running ? `SSH:${c.ssh_port} HTTP:${c.http_port}` : 'Docker Container';
                     }
+                }
 
-                    // Update threats
-                    const threats = data.threats || [];
-                    document.getElementById('threats-captured').textContent = threats.length;
+                // Update activity feed
+                if (logsData && logsData.status === 'success') {
+                    const feed = document.getElementById('honeypot-activity-feed');
+                    if (feed) {
+                        const events = logsData.events || [];
+                        if (events.length === 0) {
+                            feed.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #888; padding: 20px;">No honeypot activity yet — events will appear when devices are redirected</td></tr>';
+                        } else {
+                            feed.innerHTML = events.map(e => {
+                                const sevColor = {
+                                    'critical': '#f44336',
+                                    'high': '#ff5722',
+                                    'medium': '#ff9800',
+                                    'info': '#2196f3',
+                                    'low': '#4caf50'
+                                }[e.severity] || '#888';
+                                const eventLabel = {
+                                    'redirected': '🔴 Redirected',
+                                    'token_blocked': '🚫 Blocked',
+                                    'cowrie_deployed': '🚀 Deployed',
+                                    'cowrie_stopped': '⏹ Stopped'
+                                }[e.event_type] || ('🍯 ' + (e.event_type || 'Event'));
+                                const time = e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : '--';
+                                return `<tr>
+                                    <td style="white-space: nowrap; font-size: 12px;">${time}</td>
+                                    <td style="font-family: monospace; font-size: 12px;">${(e.device_id || '--').substring(0, 12)}</td>
+                                    <td>${eventLabel}</td>
+                                    <td style="font-size: 12px; max-width: 200px; overflow: hidden; text-overflow: ellipsis;">${e.details || '--'}</td>
+                                    <td>${e.trust_score !== null && e.trust_score !== undefined ? e.trust_score : '--'}</td>
+                                    <td><span style="color: ${sevColor}; font-weight: 600; font-size: 12px;">${(e.severity || 'unknown').toUpperCase()}</span></td>
+                                </tr>`;
+                            }).join('');
+                        }
+                    }
+                }
+            }).catch(err => console.error('Honeypot update error:', err));
+        }
 
-                    // Update blocked IPs
-                    const blockedIPs = data.blocked_ips || [];
-                    document.getElementById('blocked-ips-count').textContent = blockedIPs.length;
-
-                    // Update recent threats list
-                    const threatsList = document.getElementById('recent-threats-list');
-                    if (threats.length === 0) {
-                        threatsList.innerHTML = '<div class="alert">No threats captured</div>';
+        function deployCowrie() {
+            const msgEl = document.getElementById('cowrie-message');
+            msgEl.style.display = 'block';
+            msgEl.style.background = '#1a237e';
+            msgEl.textContent = '⏳ Deploying Cowrie container...';
+            fetch('/api/honeypot/deploy', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        msgEl.style.background = '#1b5e20';
+                        msgEl.textContent = '✅ ' + data.message;
                     } else {
-                        threatsList.innerHTML = threats.slice(-10).reverse().map(threat => `
-                            <div class="alert ${threat.severity || 'medium'}">
-                                <strong>${threat.type || threat.event_type || 'Unknown'}</strong><br>
-                                <small>Device: ${threat.device_id || threat.source_ip || 'Unknown'}</small>
-                                ${threat.trust_score !== undefined ? `<br><small>Trust Score: ${threat.trust_score} (${threat.trust_level || 'unknown'})</small>` : ''}
-                                ${threat.detection_count ? `<br><small>Detections: ${threat.detection_count}</small>` : ''}<br>
-                                <small>${threat.timestamp || ''}</small>
-                            </div>
-                        `).join('');
+                        msgEl.style.background = '#b71c1c';
+                        msgEl.textContent = '❌ ' + (data.message || 'Failed to deploy');
                     }
-
-                    // Update mitigation rules
-                    const rules = data.mitigation_rules || [];
-                    const rulesList = document.getElementById('mitigation-rules-list');
-                    if (rules.length === 0) {
-                        rulesList.innerHTML = '<tr><td colspan="4">No mitigation rules generated</td></tr>';
-                    } else {
-                        rulesList.innerHTML = rules.slice(-20).reverse().map(rule => `
-                            <tr>
-                                <td>${rule.match_fields?.ipv4_src || 'N/A'}</td>
-                                <td>${rule.type || 'unknown'}</td>
-                                <td>${rule.reason || 'N/A'}</td>
-                                <td>${rule.generated_at || 'N/A'}</td>
-                            </tr>
-                        `).join('');
-                    }
+                    updateHoneypotStatus();
+                    setTimeout(() => { msgEl.style.display = 'none'; }, 5000);
                 })
-                .catch(error => {
-                    console.error('Error fetching honeypot status:', error);
-                    // On error, try to check via redirected_devices endpoint as fallback
-                    fetch('/api/honeypot/redirected_devices')
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.container_running !== undefined) {
-                                const running = data.container_running === true;
-                                const statusEl = document.getElementById('honeypot-status');
-                                const labelEl = document.getElementById('honeypot-status-label');
+                .catch(err => {
+                    msgEl.style.background = '#b71c1c';
+                    msgEl.textContent = '❌ Error: ' + err.message;
+                    setTimeout(() => { msgEl.style.display = 'none'; }, 5000);
+                });
+        }
 
-                                if (statusEl) {
-                                    statusEl.textContent = running ? 'Running' : 'Stopped';
-                                    statusEl.style.color = running ? '#4caf50' : '#f44336';
-                                }
-
-                                if (labelEl) {
-                                    labelEl.textContent = running ? 'Container Active' : 'Container Inactive';
-                                }
-                            }
-                        })
-                        .catch(() => { });
+        function stopCowrie() {
+            const msgEl = document.getElementById('cowrie-message');
+            msgEl.style.display = 'block';
+            msgEl.style.background = '#1a237e';
+            msgEl.textContent = '⏳ Stopping Cowrie container...';
+            fetch('/api/honeypot/stop', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        msgEl.style.background = '#1b5e20';
+                        msgEl.textContent = '✅ ' + data.message;
+                    } else {
+                        msgEl.style.background = '#b71c1c';
+                        msgEl.textContent = '❌ ' + (data.message || 'Failed to stop');
+                    }
+                    updateHoneypotStatus();
+                    setTimeout(() => { msgEl.style.display = 'none'; }, 5000);
+                })
+                .catch(err => {
+                    msgEl.style.background = '#b71c1c';
+                    msgEl.textContent = '❌ Error: ' + err.message;
+                    setTimeout(() => { msgEl.style.display = 'none'; }, 5000);
                 });
         }
 

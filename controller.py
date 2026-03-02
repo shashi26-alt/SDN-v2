@@ -79,6 +79,20 @@ except ImportError as e:
     DDOS_DETECTOR_AVAILABLE = False
     print(f"⚠️  Heuristic DDoS detector not available: {e}")
 
+# Import honeypot modules
+try:
+    from honeypot_manager.honeypot_deployer import HoneypotDeployer
+    from honeypot_manager.threat_intelligence import ThreatIntelligence
+    honeypot_deployer = HoneypotDeployer("cowrie")
+    threat_intelligence = ThreatIntelligence()
+    HONEYPOT_AVAILABLE = True
+    print(" [OK] Honeypot manager initialized")
+except ImportError as e:
+    honeypot_deployer = None
+    threat_intelligence = None
+    HONEYPOT_AVAILABLE = False
+    print(f"⚠️  Honeypot manager not available: {e}")
+
 app = Flask(__name__)
 
 # Device authorization (static for now, can be dynamic)
@@ -119,6 +133,9 @@ sdn_metrics = {
 # Suspicious device alerts for dashboard
 suspicious_device_alerts = []  # List of alert dictionaries
 _last_trust_reduction = {}  # {device_id: timestamp} — rate-limit trust score hits
+
+# Honeypot activity log — tracks redirection/blocking events for the dashboard
+honeypot_activity_log = []  # [{timestamp, device_id, event_type, details, trust_score}]
 
 # Initialize ML Security Engine
 ml_engine = None
@@ -486,6 +503,14 @@ def get_token():
     for alert in suspicious_device_alerts:
         if alert.get('device_id') == device_id and alert.get('redirected'):
             app.logger.warning(f"🚫 Token request from {device_id} BLOCKED — device was redirected to honeypot")
+            honeypot_activity_log.append({
+                'timestamp': datetime.utcnow().isoformat(),
+                'device_id': device_id,
+                'event_type': 'token_blocked',
+                'details': 'Reconnection attempt blocked — device redirected to honeypot',
+                'trust_score': None,
+                'severity': 'high'
+            })
             return json.dumps({'error': 'Device blocked — redirected to honeypot'}), 403
     
     # Normalize MAC for downstream checks
@@ -782,6 +807,14 @@ def data():
                                 alert['redirected'] = True
                                 break
                         app.logger.warning(f"🔴 Device {device_id} score={post_score} < 30 — REDIRECTED to honeypot")
+                        honeypot_activity_log.append({
+                            'timestamp': datetime.utcnow().isoformat(),
+                            'device_id': device_id,
+                            'event_type': 'redirected',
+                            'details': f'ML detection — trust score {post_score} dropped below 30',
+                            'trust_score': post_score,
+                            'severity': 'critical'
+                        })
                     else:
                         app.logger.warning(f"⚠️ ML attack detected for {device_id} (score={post_score}), not yet redirected")
                 else:
@@ -830,6 +863,14 @@ def data():
                                 alert['redirected'] = True
                                 break
                         app.logger.warning(f"🔴 Device {device_id} score={post_score} < 30 — REDIRECTED to honeypot")
+                        honeypot_activity_log.append({
+                            'timestamp': datetime.utcnow().isoformat(),
+                            'device_id': device_id,
+                            'event_type': 'redirected',
+                            'details': f'Heuristic DDoS detection — trust score {post_score} dropped below 30',
+                            'trust_score': post_score,
+                            'severity': 'critical'
+                        })
                     else:
                         app.logger.warning(
                             f"⚠️ Heuristic DDoS detected for {device_id}: "
@@ -844,6 +885,14 @@ def data():
                             if post_score is not None and post_score < 30 and not alert.get('redirected'):
                                 alert['redirected'] = True
                                 app.logger.warning(f"🔴 Device {device_id} score={post_score} < 30 — REDIRECTED to honeypot")
+                                honeypot_activity_log.append({
+                                    'timestamp': datetime.utcnow().isoformat(),
+                                    'device_id': device_id,
+                                    'event_type': 'redirected',
+                                    'details': f'Per-packet reduction — trust score {post_score} dropped below 30',
+                                    'trust_score': post_score,
+                                    'severity': 'critical'
+                                })
                             break
         except Exception as e:
             app.logger.warning(f"Heuristic detection error (non-fatal): {str(e)}")
@@ -2721,6 +2770,137 @@ def remove_device_redirect(device_id):
             'message': str(e)
         }), 500
 
+# ──────────────────── Honeypot Management Endpoints ────────────────────
+
+@app.route('/api/honeypot/status')
+def honeypot_status():
+    """Get honeypot system status — Cowrie container + activity stats"""
+    try:
+        # Cowrie Docker status
+        cowrie_status = 'unavailable'
+        cowrie_info = {}
+        if HONEYPOT_AVAILABLE and honeypot_deployer:
+            try:
+                cowrie_info = honeypot_deployer.get_honeypot_info()
+                cowrie_status = cowrie_info.get('status') or 'not_deployed'
+            except Exception:
+                cowrie_status = 'error'
+
+        # Activity stats from in-memory log
+        total_redirections = sum(1 for e in honeypot_activity_log if e.get('event_type') == 'redirected')
+        total_blocks = sum(1 for e in honeypot_activity_log if e.get('event_type') == 'token_blocked')
+        active_redirected = sum(
+            1 for a in suspicious_device_alerts if a.get('redirected', False)
+        )
+
+        return json.dumps({
+            'status': 'success',
+            'cowrie': {
+                'status': cowrie_status,
+                'container_name': cowrie_info.get('container_name', 'iot_honeypot_cowrie'),
+                'ssh_port': cowrie_info.get('ssh_port', 2222),
+                'http_port': cowrie_info.get('http_port', 8080),
+                'running': cowrie_info.get('running', False),
+                'docker_available': HONEYPOT_AVAILABLE and honeypot_deployer and honeypot_deployer.docker_manager.is_available() if HONEYPOT_AVAILABLE else False
+            },
+            'activity': {
+                'total_redirections': total_redirections,
+                'total_blocks': total_blocks,
+                'active_redirected_devices': active_redirected,
+                'total_events': len(honeypot_activity_log)
+            }
+        }), 200
+    except Exception as e:
+        app.logger.error(f"Error getting honeypot status: {e}")
+        return json.dumps({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/honeypot/logs')
+def honeypot_logs():
+    """Get honeypot activity logs — redirections, blocks, and Cowrie logs"""
+    try:
+        limit = request.args.get('limit', 100, type=int)
+
+        # Get SDN honeypot activity (redirections + blocks)
+        sdn_events = list(reversed(honeypot_activity_log[-limit:]))
+
+        # Get Cowrie Docker logs if container is running
+        cowrie_logs = []
+        if HONEYPOT_AVAILABLE and honeypot_deployer:
+            try:
+                if honeypot_deployer.is_running():
+                    raw_logs = honeypot_deployer.get_logs(tail=50)
+                    if raw_logs and threat_intelligence:
+                        threats = threat_intelligence.process_logs(raw_logs)
+                        for t in threats[-limit:]:
+                            cowrie_logs.append({
+                                'timestamp': t.get('timestamp', datetime.utcnow().isoformat()),
+                                'device_id': t.get('device_id', t.get('source_ip', 'unknown')),
+                                'event_type': 'cowrie_' + t.get('event_type', 'event'),
+                                'details': t.get('command', t.get('event_type', '')),
+                                'trust_score': None,
+                                'severity': 'medium'
+                            })
+            except Exception as e:
+                app.logger.warning(f"Error reading Cowrie logs: {e}")
+
+        # Merge and sort by timestamp
+        all_events = sdn_events + cowrie_logs
+        all_events.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+
+        return json.dumps({
+            'status': 'success',
+            'events': all_events[:limit],
+            'total': len(honeypot_activity_log),
+            'cowrie_running': HONEYPOT_AVAILABLE and honeypot_deployer and honeypot_deployer.is_running() if HONEYPOT_AVAILABLE else False
+        }), 200
+    except Exception as e:
+        app.logger.error(f"Error getting honeypot logs: {e}")
+        return json.dumps({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/honeypot/deploy', methods=['POST'])
+def deploy_honeypot():
+    """Deploy Cowrie honeypot Docker container"""
+    if not HONEYPOT_AVAILABLE:
+        return json.dumps({'status': 'error', 'message': 'Honeypot manager not available'}), 400
+    try:
+        success = honeypot_deployer.deploy()
+        if success:
+            honeypot_activity_log.append({
+                'timestamp': datetime.utcnow().isoformat(),
+                'device_id': 'system',
+                'event_type': 'cowrie_deployed',
+                'details': 'Cowrie honeypot container deployed',
+                'trust_score': None,
+                'severity': 'info'
+            })
+            return json.dumps({'status': 'success', 'message': 'Cowrie honeypot deployed'}), 200
+        else:
+            return json.dumps({'status': 'error', 'message': 'Failed to deploy Cowrie — check Docker is running'}), 500
+    except Exception as e:
+        return json.dumps({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/honeypot/stop', methods=['POST'])
+def stop_honeypot():
+    """Stop Cowrie honeypot Docker container"""
+    if not HONEYPOT_AVAILABLE:
+        return json.dumps({'status': 'error', 'message': 'Honeypot manager not available'}), 400
+    try:
+        success = honeypot_deployer.stop()
+        if success:
+            honeypot_activity_log.append({
+                'timestamp': datetime.utcnow().isoformat(),
+                'device_id': 'system',
+                'event_type': 'cowrie_stopped',
+                'details': 'Cowrie honeypot container stopped',
+                'trust_score': None,
+                'severity': 'info'
+            })
+            return json.dumps({'status': 'success', 'message': 'Cowrie honeypot stopped'}), 200
+        else:
+            return json.dumps({'status': 'error', 'message': 'Failed to stop Cowrie'}), 500
+    except Exception as e:
+        return json.dumps({'status': 'error', 'message': str(e)}), 500
+
 @app.route('/api/system_reset', methods=['POST'])
 def system_reset():
     """
@@ -2732,7 +2912,7 @@ def system_reset():
     global device_tokens, packet_counts, failed_token_requests
     global mac_addresses, policy_logs, suspicious_device_alerts
     global _last_trust_reduction, ml_engine, ml_monitoring_active, sdn_policies
-    global _system_reset_time
+    global _system_reset_time, honeypot_activity_log
 
     app.logger.warning("🔄 SYSTEM RESET requested — clearing ALL state...")
     _system_reset_time = time.time()  # Start cooldown — reject device re-registration briefly
@@ -2750,6 +2930,7 @@ def system_reset():
     policy_logs.clear()
     suspicious_device_alerts.clear()
     _last_trust_reduction.clear()
+    honeypot_activity_log.clear()
 
     # Reset SDN policies to disabled
     for key in sdn_policies:
