@@ -20,10 +20,10 @@ class SimpleDDoSDetector:
     def __init__(self):
         """Initialize the DDoS detector"""
         # Detection thresholds
-        self.packet_rate_threshold = 1000.0  # packets per second
-        self.byte_rate_threshold = 10000000.0  # 10 MB/s
+        self.packet_rate_threshold = 100.0  # packets per second
+        self.byte_rate_threshold = 1000000.0  # 1 MB/s
         self.duration_threshold = 10.0  # seconds
-        self.pps_threshold = 1000.0  # packets per second
+        self.pps_threshold = 100.0  # packets per second
         
         # Traffic history for pattern analysis
         self.traffic_history = deque(maxlen=1000)  # Store last 1000 packets

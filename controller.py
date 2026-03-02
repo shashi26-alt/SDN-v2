@@ -805,10 +805,16 @@ def data():
 
             if not is_attack_detected and heuristic_result and heuristic_result.get('is_attack', False) and heuristic_result.get('confidence', 0) > 0.7:
                 is_attack_detected = True
+                # Apply small trust reduction on EVERY detected attack packet (no cooldown)
+                if TRUST_SCORER_AVAILABLE and trust_scorer:
+                    current_score = trust_scorer.get_trust_score(device_id)
+                    if current_score is not None:
+                        trust_scorer.adjust_trust_score(device_id, -5, f"Attack traffic: {heuristic_result.get('attack_type', 'ddos')}")
+
+                # Create/update alert with 60s cooldown (for logging/detection UI)
                 last_alert_time = _last_trust_reduction.get(device_id, 0)
-                if current_time - last_alert_time > 60:  # 60s cooldown
+                if current_time - last_alert_time > 60:  # 60s cooldown for alert creation
                     severity = 'high' if heuristic_result.get('confidence', 0) > 0.85 else 'medium'
-                    # Create alert but do NOT auto-redirect — only redirect when score < 30
                     create_suspicious_device_alert(
                         device_id=device_id,
                         reason='heuristic_ddos_detection',
@@ -833,20 +839,25 @@ def data():
                     for alert in suspicious_device_alerts:
                         if alert.get('device_id') == device_id:
                             alert['detection_count'] = alert.get('detection_count', 0) + 1
+                            # Also check if score dropped below 30 from per-packet reduction
+                            post_score = trust_scorer.get_trust_score(device_id) if TRUST_SCORER_AVAILABLE and trust_scorer else None
+                            if post_score is not None and post_score < 30 and not alert.get('redirected'):
+                                alert['redirected'] = True
+                                app.logger.warning(f"🔴 Device {device_id} score={post_score} < 30 — REDIRECTED to honeypot")
                             break
         except Exception as e:
             app.logger.warning(f"Heuristic detection error (non-fatal): {str(e)}")
 
     # Trust recovery: normal (non-attack) traffic slowly restores trust score
-    # NOTE: honeypot-redirected devices are NOT allowed to recover — they stay blocked
+    # NOTE: devices with ANY active suspicious alert do NOT recover — prevents score climbing during attacks
     if not is_attack_detected and TRUST_SCORER_AVAILABLE and trust_scorer:
         try:
-            # Check if device is honeypot-redirected — if so, skip recovery entirely
-            is_honeypot_redirected = any(
-                a.get('device_id') == device_id and a.get('redirected')
+            # Check if device has any active suspicious alert — if so, skip recovery
+            has_active_alert = any(
+                a.get('device_id') == device_id
                 for a in suspicious_device_alerts
             )
-            if not is_honeypot_redirected:
+            if not has_active_alert:
                 current_score = trust_scorer.get_trust_score(device_id)
                 # Gradually increase trust for normal traffic up to MAX_TRUST_SCORE (100)
                 if current_score is not None and current_score < MAX_TRUST_SCORE:
