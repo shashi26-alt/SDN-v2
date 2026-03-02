@@ -126,7 +126,7 @@ class IdentityDatabase:
             
             # Add trust_score column if it doesn't exist
             if 'trust_score' not in columns:
-                cursor.execute('ALTER TABLE devices ADD COLUMN trust_score INTEGER DEFAULT 70')
+                cursor.execute('ALTER TABLE devices ADD COLUMN trust_score INTEGER DEFAULT 0')
                 logger.info("Added trust_score column to devices table")
             
             # Add ip_address column if it doesn't exist
@@ -182,7 +182,7 @@ class IdentityDatabase:
             
             # Get existing trust_score if device exists
             existing = self.get_device(device_id)
-            trust_score = 70  # Default initial trust score
+            trust_score = 0  # Default initial trust score (devices start untrusted)
             if existing and existing.get('trust_score') is not None:
                 trust_score = existing['trust_score']
             
