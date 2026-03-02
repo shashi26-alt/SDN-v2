@@ -2156,36 +2156,54 @@ def network_statistics():
         
         # Get ML engine statistics if available
         global ml_engine
+        ml_total = 0
+        ml_attack = 0
+        ml_attack_rate = 0.0
+        ml_detection_accuracy = 0.0
+        ml_processing_rate = 0.0
+        ml_model_confidence = 0.0
+
         if ml_engine and hasattr(ml_engine, 'get_attack_statistics'):
             try:
                 ml_stats = ml_engine.get_attack_statistics()
-                stats['ml_engine'] = {
-                    'total_packets': ml_stats.get('total_packets', 0),
-                    'attack_packets': ml_stats.get('attack_packets', 0),
-                    'normal_packets': ml_stats.get('normal_packets', 0),
-                    'attack_rate': ml_stats.get('attack_rate', 0.0),
-                    'detection_accuracy': ml_stats.get('detection_accuracy', 0.0),
-                    'processing_rate': ml_stats.get('processing_rate', 0.0),
-                    'model_confidence': ml_stats.get('model_confidence', 0.0)
-                }
+                ml_total = ml_stats.get('total_packets', 0)
+                ml_attack = ml_stats.get('attack_packets', 0)
+                ml_attack_rate = ml_stats.get('attack_rate', 0.0)
+                ml_detection_accuracy = ml_stats.get('detection_accuracy', 0.0)
+                ml_processing_rate = ml_stats.get('processing_rate', 0.0)
+                ml_model_confidence = ml_stats.get('model_confidence', 0.0)
             except Exception as e:
                 app.logger.warning(f"Error getting ML statistics: {e}")
-                stats['ml_engine'] = {}
-        elif DDOS_DETECTOR_AVAILABLE and ddos_detector:
-            # Fallback: use heuristic detector stats
+
+        # Always also get heuristic detector stats (runs on every packet)
+        if DDOS_DETECTOR_AVAILABLE and ddos_detector:
             detector_stats = ddos_detector.get_statistics()
-            total_network_packets = sum(sum(device_data.get(d, [])) for d in device_data)
-            stats['ml_engine'] = {
-                'total_packets': total_network_packets or detector_stats.get('total_packets', 0),
-                'attack_packets': detector_stats.get('detected_attacks', 0),
-                'normal_packets': (total_network_packets or detector_stats.get('total_packets', 0)) - detector_stats.get('detected_attacks', 0),
-                'attack_rate': detector_stats.get('detection_rate', 0.0),
-                'detection_accuracy': detector_stats.get('detection_rate', 0.0),
-                'processing_rate': 0,
-                'model_confidence': 0
-            }
-        else:
-            stats['ml_engine'] = {}
+            h_total = detector_stats.get('total_packets', 0)
+            h_attack = detector_stats.get('detected_attacks', 0)
+            h_rate = detector_stats.get('detection_rate', 0.0)
+            # Use whichever source has more data
+            if h_total > ml_total:
+                ml_total = h_total
+            if h_attack > ml_attack:
+                ml_attack = h_attack
+            if h_rate > ml_attack_rate:
+                ml_attack_rate = h_rate
+            if h_rate > ml_detection_accuracy:
+                ml_detection_accuracy = h_rate
+
+        total_network_packets = sum(sum(device_data.get(d, [])) for d in device_data)
+        if total_network_packets > ml_total:
+            ml_total = total_network_packets
+
+        stats['ml_engine'] = {
+            'total_packets': ml_total,
+            'attack_packets': ml_attack,
+            'normal_packets': ml_total - ml_attack,
+            'attack_rate': ml_attack_rate,
+            'detection_accuracy': ml_detection_accuracy,
+            'processing_rate': ml_processing_rate,
+            'model_confidence': ml_model_confidence
+        }
         
         # Get device-specific statistics
         device_stats = {}
@@ -2819,12 +2837,28 @@ def system_reset():
             errors.append(f"trust_scorer: {e}")
             app.logger.error(f"  ❌ Failed to reset trust scorer: {e}")
 
-    # 6. Reset ML engine detection history
-    if ml_engine and hasattr(ml_engine, 'network_stats'):
+    # 6. Reset ML engine detection history (preserve structure, just zero out values)
+    if ml_engine:
         try:
-            ml_engine.network_stats = {}
+            if hasattr(ml_engine, 'network_stats') and isinstance(ml_engine.network_stats, dict):
+                for key in ml_engine.network_stats:
+                    if isinstance(ml_engine.network_stats[key], (int, float)):
+                        ml_engine.network_stats[key] = 0
+                    elif isinstance(ml_engine.network_stats[key], list):
+                        ml_engine.network_stats[key] = []
+                    elif isinstance(ml_engine.network_stats[key], dict):
+                        ml_engine.network_stats[key] = {}
             if hasattr(ml_engine, 'detection_history'):
-                ml_engine.detection_history = []
+                if isinstance(ml_engine.detection_history, list):
+                    ml_engine.detection_history.clear()
+                else:
+                    ml_engine.detection_history = []
+            if hasattr(ml_engine, 'attack_count'):
+                ml_engine.attack_count = 0
+            if hasattr(ml_engine, 'total_packets'):
+                ml_engine.total_packets = 0
+            if hasattr(ml_engine, 'normal_count'):
+                ml_engine.normal_count = 0
             app.logger.info("  ✅ ML engine stats reset")
         except Exception as e:
             errors.append(f"ml_engine: {e}")
