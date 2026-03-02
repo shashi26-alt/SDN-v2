@@ -68,6 +68,17 @@ except ImportError as e:
     def get_ml_engine():
         return None
 
+# Import heuristic DDoS detector as fallback when ML engine is not available
+try:
+    from simple_ddos_detector import SimpleDDoSDetector
+    ddos_detector = SimpleDDoSDetector()
+    DDOS_DETECTOR_AVAILABLE = True
+    print(" [OK] Heuristic DDoS detector initialized (fallback)")
+except ImportError as e:
+    ddos_detector = None
+    DDOS_DETECTOR_AVAILABLE = False
+    print(f"⚠️  Heuristic DDoS detector not available: {e}")
+
 app = Flask(__name__)
 
 # Device authorization (static for now, can be dynamic)
@@ -468,6 +479,12 @@ def get_token():
     if time.time() - _system_reset_time < RESET_COOLDOWN_SECONDS:
         app.logger.info(f"Token request from {device_id} rejected — system reset cooldown active")
         return json.dumps({'error': 'System reset in progress, please retry shortly'}), 503
+
+    # Block devices that have been redirected to the honeypot — they must NOT reconnect
+    for alert in suspicious_device_alerts:
+        if alert.get('device_id') == device_id and alert.get('redirected'):
+            app.logger.warning(f"🚫 Token request from {device_id} BLOCKED — device was redirected to honeypot")
+            return json.dumps({'error': 'Device blocked — redirected to honeypot'}), 403
     
     # Normalize MAC for downstream checks
     if isinstance(mac_address, str):
@@ -766,26 +783,55 @@ def data():
         # Non-fatal for data ingestion; continue normally
         app.logger.warning(f"ML prediction error (non-fatal): {str(e)}")
 
+    # Heuristic DDoS detection fallback — runs when ML engine is not available
+    if not is_attack_detected and DDOS_DETECTOR_AVAILABLE and ddos_detector:
+        try:
+            heuristic_result = ddos_detector.detect({
+                'size': data.get('size', 0),
+                'protocol': data.get('protocol', 6),
+                'rate': data.get('rate', 0.0),
+                'pps': data.get('pps', 0.0),
+                'duration': data.get('duration', 0.0),
+            })
+
+            if heuristic_result and heuristic_result.get('is_attack', False) and heuristic_result.get('confidence', 0) > 0.7:
+                is_attack_detected = True
+                last_alert_time = _last_trust_reduction.get(device_id, 0)
+                if current_time - last_alert_time > 60:  # 60s cooldown
+                    severity = 'high' if heuristic_result.get('confidence', 0) > 0.85 else 'medium'
+                    create_suspicious_device_alert(
+                        device_id=device_id,
+                        reason='heuristic_ddos_detection',
+                        severity=severity,
+                        redirected=True
+                    )
+                    _last_trust_reduction[device_id] = current_time
+                    app.logger.warning(
+                        f"⚠️ Heuristic DDoS detected for {device_id}: "
+                        f"{heuristic_result.get('attack_type')} (confidence: {heuristic_result.get('confidence', 0):.2f})"
+                    )
+                else:
+                    for alert in suspicious_device_alerts:
+                        if alert.get('device_id') == device_id:
+                            alert['detection_count'] = alert.get('detection_count', 0) + 1
+                            break
+        except Exception as e:
+            app.logger.warning(f"Heuristic detection error (non-fatal): {str(e)}")
+
     # Trust recovery: normal (non-attack) traffic slowly restores trust score
+    # NOTE: honeypot-redirected devices are NOT allowed to recover — they stay blocked
     if not is_attack_detected and TRUST_SCORER_AVAILABLE and trust_scorer:
         try:
-            current_score = trust_scorer.get_trust_score(device_id)
-            
-            # Gradually recover trust for normal traffic
-            if current_score is not None and current_score < trust_scorer.initial_score:
-                trust_scorer.adjust_trust_score(device_id, +2, "Normal behavior observed")
+            # Check if device is honeypot-redirected — if so, skip recovery entirely
+            is_honeypot_redirected = any(
+                a.get('device_id') == device_id and a.get('redirected')
+                for a in suspicious_device_alerts
+            )
+            if not is_honeypot_redirected:
                 current_score = trust_scorer.get_trust_score(device_id)
-            
-            # Always check: if score is >= 30, clear any stale redirected flags
-            # This runs even if the score is already at 70
-            if current_score is not None and current_score >= 30:
-                for alert in suspicious_device_alerts:
-                    if alert.get('device_id') == device_id and alert.get('redirected'):
-                        alert['redirected'] = False
-                        app.logger.info(
-                            f"✅ Device {device_id} trust at {current_score}, "
-                            f"clearing honeypot redirect — device will reconnect on map"
-                        )
+                # Gradually recover trust for normal traffic (only non-redirected devices)
+                if current_score is not None and current_score < trust_scorer.initial_score:
+                    trust_scorer.adjust_trust_score(device_id, +2, "Normal behavior observed")
         except Exception:
             pass
 
@@ -2695,6 +2741,14 @@ def system_reset():
             app.logger.info("  ✅ ML engine stats reset")
         except Exception as e:
             errors.append(f"ml_engine: {e}")
+
+    # 7. Reset heuristic DDoS detector
+    if DDOS_DETECTOR_AVAILABLE and ddos_detector:
+        try:
+            ddos_detector.reset_statistics()
+            app.logger.info("  ✅ Heuristic DDoS detector reset")
+        except Exception as e:
+            errors.append(f"ddos_detector: {e}")
 
     app.logger.warning("🔄 SYSTEM RESET complete — system is fresh")
 
