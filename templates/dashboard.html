@@ -2486,38 +2486,70 @@
         }
 
         function updateNetworkStatistics() {
-            fetch('/api/network/statistics?t=' + Date.now())
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success' && data.statistics) {
-                        const stats = data.statistics;
+            // Fetch both endpoints in parallel for maximum reliability
+            Promise.all([
+                fetch('/api/network/statistics?t=' + Date.now()).then(r => r.json()).catch(() => null),
+                fetch('/ml/status?t=' + Date.now()).then(r => r.json()).catch(() => null)
+            ]).then(([netData, mlData]) => {
+                const totalPacketsEl = document.getElementById('total-packets');
+                const attackPacketsEl = document.getElementById('attack-packets');
+                const attackRateEl = document.getElementById('attack-rate');
+                const modelConfidenceEl = document.getElementById('model-confidence');
+                const mlUptimeEl = document.getElementById('ml-uptime');
+                const modelStatusEl = document.getElementById('model-status');
+                const detectionAccuracyEl = document.getElementById('detection-accuracy');
+                const statusDot = document.getElementById('ml-status-dot');
+                const statusText = document.getElementById('ml-status-text');
+                const statusSubtitle = document.getElementById('ml-status-subtitle');
 
-                        // Update ML engine statistics if available
-                        if (stats.ml_engine) {
-                            const mlStats = stats.ml_engine;
-                            const totalPacketsEl = document.getElementById('total-packets');
-                            const attackPacketsEl = document.getElementById('attack-packets');
-                            const attackRateEl = document.getElementById('attack-rate');
-                            const modelConfidenceEl = document.getElementById('model-confidence');
+                // Try ML status first (has heuristic stats), then fall back to network stats
+                let totalPackets = 0, attackPackets = 0, attackRate = 0, confidence = 0;
+                let uptime = 0, modelStatus = 'Unknown';
 
-                            if (totalPacketsEl) totalPacketsEl.textContent = mlStats.total_packets || 0;
-                            if (attackPacketsEl) attackPacketsEl.textContent = mlStats.attack_packets || 0;
-                            if (attackRateEl) attackRateEl.textContent = `${(mlStats.attack_rate || 0).toFixed(1)}%`;
-                            if (modelConfidenceEl) modelConfidenceEl.textContent = `${(mlStats.detection_accuracy || 0).toFixed(1)}%`;
-                        }
+                if (mlData && mlData.statistics) {
+                    const s = mlData.statistics;
+                    totalPackets = s.total_packets || 0;
+                    attackPackets = s.attack_packets || 0;
+                    attackRate = s.attack_rate || 0;
+                    confidence = s.detection_accuracy || 0;
+                    uptime = s.uptime || 0;
+                    modelStatus = s.model_status || 'Active';
+                }
 
-                        // Update network overview if available
-                        if (stats.network) {
-                            console.log('Network stats:', stats.network);
-                        }
+                // Override with network stats if they have higher values (more complete data)
+                if (netData && netData.status === 'success' && netData.statistics && netData.statistics.ml_engine) {
+                    const ml = netData.statistics.ml_engine;
+                    if ((ml.total_packets || 0) > totalPackets) totalPackets = ml.total_packets;
+                    if ((ml.attack_packets || 0) > attackPackets) attackPackets = ml.attack_packets;
+                    if ((ml.attack_rate || 0) > attackRate) attackRate = ml.attack_rate;
+                }
+
+                // Update stat elements
+                if (totalPacketsEl) totalPacketsEl.textContent = totalPackets;
+                if (attackPacketsEl) attackPacketsEl.textContent = attackPackets;
+                if (attackRateEl) attackRateEl.textContent = `${attackRate.toFixed(1)}%`;
+                if (modelConfidenceEl) modelConfidenceEl.textContent = `${confidence.toFixed(1)}%`;
+
+                // Update system metrics
+                if (mlUptimeEl) mlUptimeEl.textContent = `${Math.floor(uptime / 60)}m`;
+                if (modelStatusEl) modelStatusEl.textContent = modelStatus;
+                if (detectionAccuracyEl) detectionAccuracyEl.textContent = `${confidence.toFixed(1)}%`;
+
+                // Update status indicator
+                if (statusDot && statusText && statusSubtitle) {
+                    if (mlData && (mlData.status === 'active')) {
+                        statusDot.className = 'status-dot-large active';
+                        statusText.textContent = 'Active - Monitoring';
+                        statusSubtitle.textContent = `Processing ${totalPackets} packets`;
+                    } else {
+                        statusDot.className = 'status-dot-large';
+                        statusText.textContent = 'Initializing...';
+                        statusSubtitle.textContent = 'Waiting for data...';
                     }
-                })
-                .catch(error => {
-                    console.error('Error fetching network statistics:', error);
-                });
-
-            // Also update ML status/metrics (keeps ML tab stats live)
-            updateMLMetrics();
+                }
+            }).catch(error => {
+                console.error('Error updating network statistics:', error);
+            });
         }
 
         function updatePolicyLogs() {
