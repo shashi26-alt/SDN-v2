@@ -2725,72 +2725,9 @@
         }
 
         function updateMLMetrics() {
-            fetch('/ml/status?t=' + Date.now()) // Cache busting
-                .then(response => response.json())
-                .then(data => {
-                    console.log('ML Status Data:', data); // Debug log
-
-                    // Update status indicator
-                    const statusDot = document.getElementById('ml-status-dot');
-                    const statusText = document.getElementById('ml-status-text');
-                    const statusSubtitle = document.getElementById('ml-status-subtitle');
-
-                    if (statusDot && statusText && statusSubtitle) {
-                        if (data.status === 'active') {
-                            statusDot.className = 'status-dot-large active';
-                            statusText.textContent = 'Active - Monitoring';
-                            statusSubtitle.textContent = `Processing ${data.statistics?.total_packets || 0} packets`;
-                        } else if (data.status === 'error') {
-                            statusDot.className = 'status-dot-large error';
-                            statusText.textContent = 'Error - Check Logs';
-                            statusSubtitle.textContent = 'ML engine encountered an error';
-                        } else {
-                            statusDot.className = 'status-dot-large';
-                            statusText.textContent = 'Initializing...';
-                            statusSubtitle.textContent = 'Loading ML model and starting monitoring';
-                        }
-                    }
-
-                    // Update statistics
-                    if (data.statistics) {
-                        const stats = data.statistics;
-                        console.log('Updating ML stats:', stats); // Debug log
-
-                        // Update main stats with null checks
-                        const totalPacketsEl = document.getElementById('total-packets');
-                        const attackPacketsEl = document.getElementById('attack-packets');
-                        const attackRateEl = document.getElementById('attack-rate');
-                        const modelConfidenceEl = document.getElementById('model-confidence');
-
-                        if (totalPacketsEl) totalPacketsEl.textContent = stats.total_packets || 0;
-                        if (attackPacketsEl) attackPacketsEl.textContent = stats.attack_packets || 0;
-                        if (attackRateEl) attackRateEl.textContent = `${(stats.attack_rate || 0).toFixed(1)}%`;
-                        if (modelConfidenceEl) modelConfidenceEl.textContent = `${(stats.detection_accuracy || 0).toFixed(1)}%`;
-
-                        // Update system metrics with null checks
-                        const mlUptimeEl = document.getElementById('ml-uptime');
-                        const modelStatusEl = document.getElementById('model-status');
-                        const lastHealthCheckEl = document.getElementById('last-health-check');
-                        const detectionAccuracyEl = document.getElementById('detection-accuracy');
-
-                        if (mlUptimeEl) mlUptimeEl.textContent = `${Math.floor((stats.uptime || 0) / 60)}m`;
-                        if (modelStatusEl) modelStatusEl.textContent = stats.model_status || 'Unknown';
-                        if (lastHealthCheckEl) lastHealthCheckEl.textContent = stats.last_health_check ?
-                            new Date(stats.last_health_check).toLocaleTimeString() : '--';
-                        if (detectionAccuracyEl) detectionAccuracyEl.textContent = `${(stats.detection_accuracy || 0).toFixed(1)}%`;
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching ML metrics:', error);
-                    const statusDot = document.getElementById('ml-status-dot');
-                    const statusText = document.getElementById('ml-status-text');
-                    const statusSubtitle = document.getElementById('ml-status-subtitle');
-                    if (statusDot && statusText && statusSubtitle) {
-                        statusDot.className = 'status-dot-large error';
-                        statusText.textContent = 'Connection Error';
-                        statusSubtitle.textContent = 'Unable to fetch ML engine data';
-                    }
-                });
+            // Delegate to updateNetworkStatistics which fetches both endpoints
+            // and updates all ML stats, status indicators, and system metrics
+            updateNetworkStatistics();
         }
 
         function updateMLDetections(isRetry = false) {
