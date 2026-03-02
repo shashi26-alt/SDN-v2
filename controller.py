@@ -760,33 +760,40 @@ def data():
                 'udp_length': data.get('udp_length', 0)
             })
             
-            # Check if ML detected high-confidence attack and trigger redirection
+            # Check if ML detected high-confidence attack
             if result and result.get('is_attack', False) and result.get('confidence', 0) > 0.8:
                 is_attack_detected = True
-                # Rate-limit trust score reduction: only once per 60s per device
                 last_alert_time = _last_trust_reduction.get(device_id, 0)
                 if current_time - last_alert_time > 60:  # 60s cooldown
                     severity = 'high' if result.get('confidence', 0) > 0.9 else 'medium'
+                    # Create alert but do NOT auto-redirect — only redirect when score < 30
                     create_suspicious_device_alert(
                         device_id=device_id,
                         reason='ml_detection',
                         severity=severity,
-                        redirected=True
+                        redirected=False
                     )
                     _last_trust_reduction[device_id] = current_time
-                    app.logger.warning(f"High-confidence ML attack detected for {device_id}: {result.get('attack_type')}")
+                    # Check if trust score dropped below 30 — then redirect to honeypot
+                    post_score = trust_scorer.get_trust_score(device_id) if TRUST_SCORER_AVAILABLE and trust_scorer else None
+                    if post_score is not None and post_score < 30:
+                        for alert in suspicious_device_alerts:
+                            if alert.get('device_id') == device_id:
+                                alert['redirected'] = True
+                                break
+                        app.logger.warning(f"🔴 Device {device_id} score={post_score} < 30 — REDIRECTED to honeypot")
+                    else:
+                        app.logger.warning(f"⚠️ ML attack detected for {device_id} (score={post_score}), not yet redirected")
                 else:
-                    # Update detection count on existing alert without reducing trust again
                     for alert in suspicious_device_alerts:
                         if alert.get('device_id') == device_id:
                             alert['detection_count'] = alert.get('detection_count', 0) + 1
                             break
     except Exception as e:
-        # Non-fatal for data ingestion; continue normally
         app.logger.warning(f"ML prediction error (non-fatal): {str(e)}")
 
-    # Heuristic DDoS detection fallback — runs when ML engine is not available
-    if not is_attack_detected and DDOS_DETECTOR_AVAILABLE and ddos_detector:
+    # Heuristic DDoS detection — ALWAYS runs so stats accumulate for ML tab
+    if DDOS_DETECTOR_AVAILABLE and ddos_detector:
         try:
             heuristic_result = ddos_detector.detect({
                 'size': data.get('size', 0),
@@ -796,22 +803,32 @@ def data():
                 'duration': data.get('duration', 0.0),
             })
 
-            if heuristic_result and heuristic_result.get('is_attack', False) and heuristic_result.get('confidence', 0) > 0.7:
+            if not is_attack_detected and heuristic_result and heuristic_result.get('is_attack', False) and heuristic_result.get('confidence', 0) > 0.7:
                 is_attack_detected = True
                 last_alert_time = _last_trust_reduction.get(device_id, 0)
                 if current_time - last_alert_time > 60:  # 60s cooldown
                     severity = 'high' if heuristic_result.get('confidence', 0) > 0.85 else 'medium'
+                    # Create alert but do NOT auto-redirect — only redirect when score < 30
                     create_suspicious_device_alert(
                         device_id=device_id,
                         reason='heuristic_ddos_detection',
                         severity=severity,
-                        redirected=True
+                        redirected=False
                     )
                     _last_trust_reduction[device_id] = current_time
-                    app.logger.warning(
-                        f"⚠️ Heuristic DDoS detected for {device_id}: "
-                        f"{heuristic_result.get('attack_type')} (confidence: {heuristic_result.get('confidence', 0):.2f})"
-                    )
+                    # Check if trust score dropped below 30 — then redirect to honeypot
+                    post_score = trust_scorer.get_trust_score(device_id) if TRUST_SCORER_AVAILABLE and trust_scorer else None
+                    if post_score is not None and post_score < 30:
+                        for alert in suspicious_device_alerts:
+                            if alert.get('device_id') == device_id:
+                                alert['redirected'] = True
+                                break
+                        app.logger.warning(f"🔴 Device {device_id} score={post_score} < 30 — REDIRECTED to honeypot")
+                    else:
+                        app.logger.warning(
+                            f"⚠️ Heuristic DDoS detected for {device_id}: "
+                            f"{heuristic_result.get('attack_type')} (score={post_score}, not yet redirected)"
+                        )
                 else:
                     for alert in suspicious_device_alerts:
                         if alert.get('device_id') == device_id:
