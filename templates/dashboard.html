@@ -3734,6 +3734,16 @@
             btn.style.opacity = '0.7';
             btn.style.pointerEvents = 'none';
 
+            // Immediately clear trust score UI so user sees the reset visually
+            const avgEl = document.getElementById('avg-trust-score');
+            const trustedEl = document.getElementById('trusted-devices-count');
+            const suspiciousEl = document.getElementById('suspicious-devices-count');
+            const trustTable = document.getElementById('trust-scores-list');
+            if (avgEl) avgEl.textContent = '0';
+            if (trustedEl) trustedEl.textContent = '0';
+            if (suspiciousEl) suspiciousEl.textContent = '0';
+            if (trustTable) trustTable.innerHTML = '<tr><td colspan="5">System reset — no devices registered</td></tr>';
+
             fetch('/api/system_reset', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }

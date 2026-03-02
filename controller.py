@@ -113,6 +113,10 @@ _last_trust_reduction = {}  # {device_id: timestamp} — rate-limit trust score 
 ml_engine = None
 ml_monitoring_active = False
 
+# Track when system was last reset to enforce a cooldown period
+_system_reset_time = 0
+RESET_COOLDOWN_SECONDS = 5  # Reject device token requests for this long after reset
+
 # Security flag: disallow insecure auto-authorization unless explicitly enabled
 ALLOW_INSECURE_AUTO_AUTH = os.getenv("ALLOW_INSECURE_AUTO_AUTH", "false").lower() == "true"
 
@@ -459,6 +463,11 @@ def get_token():
     
     app.logger.info(f"Token request from device_id: {device_id}, MAC: {mac_address}")
     app.logger.debug(f"Full request data: {data}")
+
+    # Reject token requests during post-reset cooldown so dashboard shows clean state
+    if time.time() - _system_reset_time < RESET_COOLDOWN_SECONDS:
+        app.logger.info(f"Token request from {device_id} rejected — system reset cooldown active")
+        return json.dumps({'error': 'System reset in progress, please retry shortly'}), 503
     
     # Normalize MAC for downstream checks
     if isinstance(mac_address, str):
@@ -1691,10 +1700,8 @@ def get_trust_scores():
         
         # Use live TrustScorer for real-time scores
         if TRUST_SCORER_AVAILABLE and trust_scorer:
-            # Auto-initialize any known devices not yet tracked by the trust scorer
-            for dev_id in set(list(authorized_devices.keys()) + list(device_data.keys())):
-                if trust_scorer.get_trust_score(dev_id) is None:
-                    trust_scorer.initialize_device(dev_id)
+            # Only return scores for devices already tracked — do NOT auto-initialize
+            # so that after a system reset the dashboard shows a clean empty state
             scores = trust_scorer.get_all_scores()
         # Fallback to database
         elif ONBOARDING_AVAILABLE and onboarding:
@@ -2574,8 +2581,10 @@ def system_reset():
     global device_tokens, packet_counts, failed_token_requests
     global mac_addresses, policy_logs, suspicious_device_alerts
     global _last_trust_reduction, ml_engine, ml_monitoring_active, sdn_policies
+    global _system_reset_time
 
     app.logger.warning("🔄 SYSTEM RESET requested — clearing ALL state...")
+    _system_reset_time = time.time()  # Start cooldown — reject device re-registration briefly
     errors = []
 
     # 1. Clear in-memory tracking structures
@@ -2648,11 +2657,30 @@ def system_reset():
         errors.append(f"certs: {e}")
         app.logger.error(f"  ❌ Failed to clean certificate files: {e}")
 
-    # 5. Reset trust scorer
+    # 5. Reset trust scorer (in-memory AND database)
     if TRUST_SCORER_AVAILABLE and trust_scorer:
         try:
             trust_scorer.device_scores.clear()
             trust_scorer.score_history.clear()
+            # Also explicitly clear trust scores from identity DB via the scorer's own reference
+            if trust_scorer.identity_db:
+                try:
+                    db_path = trust_scorer.identity_db.db_path
+                    conn = sqlite3.connect(db_path)
+                    cursor = conn.cursor()
+                    # Clear trust_scores table specifically if it exists
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='trust_scores'")
+                    if cursor.fetchone():
+                        cursor.execute("DELETE FROM trust_scores")
+                    # Also clear any trust_score_history table
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='trust_score_history'")
+                    if cursor.fetchone():
+                        cursor.execute("DELETE FROM trust_score_history")
+                    conn.commit()
+                    conn.close()
+                    app.logger.info("  ✅ Trust scores cleared from identity database")
+                except Exception as db_e:
+                    app.logger.warning(f"  ⚠️  Could not clear trust scores from DB: {db_e}")
             app.logger.info("  ✅ Trust scorer reset")
         except Exception as e:
             errors.append(f"trust_scorer: {e}")
