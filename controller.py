@@ -850,7 +850,7 @@ def data():
                 current_score = trust_scorer.get_trust_score(device_id)
                 # Gradually increase trust for normal traffic up to MAX_TRUST_SCORE (100)
                 if current_score is not None and current_score < MAX_TRUST_SCORE:
-                    trust_scorer.adjust_trust_score(device_id, +2, "Normal behavior observed")
+                    trust_scorer.adjust_trust_score(device_id, +5, "Normal behavior observed")
         except Exception:
             pass
 
