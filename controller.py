@@ -1938,10 +1938,26 @@ def initialize_ml():
 def ml_status():
     """Get ML engine status"""
     if not ML_ENGINE_AVAILABLE:
+        # Return heuristic detector stats when ML engine is not available
+        heuristic_stats = {}
+        if DDOS_DETECTOR_AVAILABLE and ddos_detector:
+            detector_stats = ddos_detector.get_statistics()
+            heuristic_stats = {
+                'total_packets': detector_stats.get('total_packets', 0),
+                'attack_packets': detector_stats.get('detected_attacks', 0),
+                'normal_packets': detector_stats.get('total_packets', 0) - detector_stats.get('detected_attacks', 0),
+                'attack_rate': detector_stats.get('detection_rate', 0.0),
+                'detection_accuracy': 0,
+                'processing_rate': 0,
+                'model_confidence': 0,
+                'model_status': 'Heuristic Detection (No TensorFlow)',
+                'uptime': time.time() - _system_reset_time if _system_reset_time > 0 else 0,
+            }
         return json.dumps({
-            'status': 'unavailable',
-            'monitoring': False,
-            'message': 'ML engine not available (TensorFlow not installed)'
+            'status': 'active' if DDOS_DETECTOR_AVAILABLE else 'unavailable',
+            'monitoring': DDOS_DETECTOR_AVAILABLE,
+            'message': 'Using heuristic DDoS detection (TensorFlow not installed)',
+            'statistics': heuristic_stats
         })
     
     global ml_engine, ml_monitoring_active
@@ -1974,11 +1990,33 @@ def ml_status():
 def ml_detections():
     """Get recent attack detections"""
     if not ML_ENGINE_AVAILABLE:
+        # Return heuristic detections when ML engine is not available
+        heuristic_detections = []
+        # Use suspicious device alerts as detection source
+        for alert in suspicious_device_alerts:
+            heuristic_detections.append({
+                'timestamp': alert.get('timestamp'),
+                'is_attack': True,
+                'attack_type': alert.get('reason', 'heuristic_detection'),
+                'confidence': 0.85,
+                'device_id': alert.get('device_id', 'Unknown'),
+                'details': f"Severity: {alert.get('severity', 'unknown')}, Detections: {alert.get('detection_count', 1)}"
+            })
+        # Also include recent attacks from the heuristic detector
+        if DDOS_DETECTOR_AVAILABLE and ddos_detector:
+            for attack in ddos_detector.get_recent_attacks(10):
+                heuristic_detections.append({
+                    'timestamp': attack.get('timestamp', datetime.now()).isoformat() if hasattr(attack.get('timestamp', ''), 'isoformat') else str(attack.get('timestamp', '')),
+                    'is_attack': True,
+                    'attack_type': attack.get('attack_type', 'ddos'),
+                    'confidence': float(attack.get('confidence', 0.0)),
+                    'details': attack.get('reason', '')
+                })
         return json.dumps({
-            'error': 'ML engine not available',
-            'status': 'error',
-            'message': 'TensorFlow not installed'
-        }), 503
+            'status': 'success',
+            'detections': heuristic_detections[-20:],
+            'stats': ddos_detector.get_statistics() if DDOS_DETECTOR_AVAILABLE and ddos_detector else {}
+        }), 200
     
     try:
         global ml_engine, ml_monitoring_active
@@ -2097,6 +2135,19 @@ def network_statistics():
             except Exception as e:
                 app.logger.warning(f"Error getting ML statistics: {e}")
                 stats['ml_engine'] = {}
+        elif DDOS_DETECTOR_AVAILABLE and ddos_detector:
+            # Fallback: use heuristic detector stats
+            detector_stats = ddos_detector.get_statistics()
+            total_network_packets = sum(sum(device_data.get(d, [])) for d in device_data)
+            stats['ml_engine'] = {
+                'total_packets': total_network_packets or detector_stats.get('total_packets', 0),
+                'attack_packets': detector_stats.get('detected_attacks', 0),
+                'normal_packets': (total_network_packets or detector_stats.get('total_packets', 0)) - detector_stats.get('detected_attacks', 0),
+                'attack_rate': detector_stats.get('detection_rate', 0.0),
+                'detection_accuracy': 0,
+                'processing_rate': 0,
+                'model_confidence': 0
+            }
         else:
             stats['ml_engine'] = {}
         
