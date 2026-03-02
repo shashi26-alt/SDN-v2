@@ -34,7 +34,7 @@ bool session_authorized = false;
 
 // ===== ATTACK CONFIGURATION =====
 const unsigned long NORMAL_PHASE_DURATION =
-    30000; // 30 seconds of normal behavior
+    60000; // 30 seconds of normal behavior
 const unsigned long NORMAL_SEND_INTERVAL = 5000; // Normal: send every 5 seconds
 const unsigned long ATTACK_SEND_INTERVAL =
     2000; // Attack: send every 2s (avoids flooding gateway)

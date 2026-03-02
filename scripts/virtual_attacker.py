@@ -40,7 +40,7 @@ DEFAULT_SERVER = "127.0.0.1"
 DEFAULT_PORT = 5000
 DEFAULT_DEVICE_ID = "ATTACKER_01"
 
-NORMAL_PHASE_DURATION = 30   # seconds of normal behavior before attack
+NORMAL_PHASE_DURATION = 60   # seconds of normal behavior before attack
 NORMAL_SEND_INTERVAL = 5     # seconds between normal data sends
 ATTACK_SEND_INTERVAL = 2     # seconds between attack packets
 TOKEN_RETRY_INTERVAL = 15    # seconds between token retries
