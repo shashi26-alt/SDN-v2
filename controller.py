@@ -1983,7 +1983,7 @@ def ml_status():
                 'attack_packets': detector_stats.get('detected_attacks', 0),
                 'normal_packets': detector_stats.get('total_packets', 0) - detector_stats.get('detected_attacks', 0),
                 'attack_rate': detector_stats.get('detection_rate', 0.0),
-                'detection_accuracy': 0,
+                'detection_accuracy': detector_stats.get('detection_rate', 0.0),
                 'processing_rate': 0,
                 'model_confidence': 0,
                 'model_status': 'Heuristic Detection (No TensorFlow)',
@@ -2180,7 +2180,7 @@ def network_statistics():
                 'attack_packets': detector_stats.get('detected_attacks', 0),
                 'normal_packets': (total_network_packets or detector_stats.get('total_packets', 0)) - detector_stats.get('detected_attacks', 0),
                 'attack_rate': detector_stats.get('detection_rate', 0.0),
-                'detection_accuracy': 0,
+                'detection_accuracy': detector_stats.get('detection_rate', 0.0),
                 'processing_rate': 0,
                 'model_confidence': 0
             }
