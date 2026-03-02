@@ -1915,6 +1915,12 @@ def get_sdn_metrics():
 def initialize_ml():
     """Initialize the ML security engine"""
     if not ML_ENGINE_AVAILABLE:
+        # If heuristic detector is available, report success with heuristic mode
+        if DDOS_DETECTOR_AVAILABLE and ddos_detector:
+            return json.dumps({
+                'status': 'success',
+                'message': 'Using heuristic DDoS detection (TensorFlow not installed)'
+            })
         return json.dumps({'status': 'error', 'message': 'ML engine not available (TensorFlow not installed)'})
     
     global ml_engine, ml_monitoring_active
