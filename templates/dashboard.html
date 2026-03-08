@@ -1537,11 +1537,8 @@
                     <div class="metric-value" id="hp-active-blocked" style="color: #ff9800;">0</div>
                     <div class="metric-label">Currently blocked devices</div>
                 </div>
-                <div class="card">
-                    <h3>🔒 Token Rejections</h3>
-                    <div class="metric-value" id="hp-token-blocks" style="color: #9c27b0;">0</div>
-                    <div class="metric-label">Reconnection attempts blocked</div>
-                </div>
+
+
                 <div class="card">
                     <h3>🍯 Cowrie Status</h3>
                     <div class="metric-value" id="honeypot-status" style="color: #607d8b;">Not Deployed</div>
@@ -3159,13 +3156,12 @@
 
                     const redirEl = document.getElementById('hp-total-redirections');
                     const blockedEl = document.getElementById('hp-active-blocked');
-                    const tokenEl = document.getElementById('hp-token-blocks');
                     const statusEl = document.getElementById('honeypot-status');
                     const labelEl = document.getElementById('honeypot-status-label');
 
                     if (redirEl) redirEl.textContent = a.total_redirections || 0;
                     if (blockedEl) blockedEl.textContent = a.active_redirected_devices || 0;
-                    if (tokenEl) tokenEl.textContent = a.total_blocks || 0;
+
 
                     if (statusEl) {
                         if (c.running) {

@@ -2707,7 +2707,7 @@ def honeypot_status():
                 cowrie_status = 'error'
 
         # Activity stats from in-memory log
-        total_redirections = sum(1 for e in honeypot_activity_log if e.get('event_type') == 'redirected')
+        total_redirections = len(set(e.get('device_id') for e in honeypot_activity_log if e.get('event_type') == 'redirected'))
         total_blocks = sum(1 for e in honeypot_activity_log if e.get('event_type') == 'token_blocked')
         active_redirected = sum(
             1 for a in suspicious_device_alerts if a.get('redirected', False)
