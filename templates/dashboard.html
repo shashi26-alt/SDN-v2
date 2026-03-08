@@ -3721,6 +3721,191 @@
                 });
         }
 
+        // ===== Honeypot Tab Functions =====
+        function updateHoneypotStatus() {
+            // Fetch stats from /api/honeypot/status
+            fetch('/api/honeypot/status')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success' || data.cowrie) {
+                        const act = data.activity || {};
+                        const cowrie = data.cowrie || {};
+
+                        // Stats row
+                        const totalRedirEl = document.getElementById('hp-total-redirections');
+                        const activeBlockedEl = document.getElementById('hp-active-blocked');
+                        const tokenBlocksEl = document.getElementById('hp-token-blocks');
+                        const hpStatusEl = document.getElementById('honeypot-status');
+                        const hpStatusLabel = document.getElementById('honeypot-status-label');
+
+                        if (totalRedirEl) totalRedirEl.textContent = act.total_redirections || 0;
+                        if (activeBlockedEl) activeBlockedEl.textContent = act.active_redirected_devices || 0;
+                        if (tokenBlocksEl) tokenBlocksEl.textContent = act.total_blocks || 0;
+
+                        // Cowrie status
+                        if (hpStatusEl) {
+                            if (cowrie.running) {
+                                hpStatusEl.textContent = 'Running';
+                                hpStatusEl.style.color = '#4caf50';
+                            } else if (cowrie.docker_available) {
+                                hpStatusEl.textContent = 'Stopped';
+                                hpStatusEl.style.color = '#ff9800';
+                            } else {
+                                hpStatusEl.textContent = 'No Docker';
+                                hpStatusEl.style.color = '#607d8b';
+                            }
+                        }
+                        if (hpStatusLabel) {
+                            hpStatusLabel.textContent = cowrie.running
+                                ? `Container: ${cowrie.container_name || 'cowrie'} (SSH: ${cowrie.ssh_port || 2222})`
+                                : 'Docker Container';
+                        }
+                    }
+                })
+                .catch(() => { });
+
+            // Fetch activity feed from /api/honeypot/logs
+            fetch('/api/honeypot/logs?limit=50')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const tbody = document.getElementById('honeypot-activity-feed');
+                        if (!tbody) return;
+
+                        const events = data.events || [];
+                        if (events.length === 0) {
+                            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: var(--text-secondary); padding: 2rem;">No honeypot activity yet</td></tr>';
+                            return;
+                        }
+
+                        tbody.innerHTML = events.map(ev => {
+                            const ts = ev.timestamp ? new Date(ev.timestamp).toLocaleString() : '--';
+                            const device = ev.device_id || 'unknown';
+                            const eventType = (ev.event_type || 'unknown').replace(/_/g, ' ');
+                            const details = ev.details || '--';
+                            const score = ev.trust_score != null ? ev.trust_score : '--';
+                            const sev = ev.severity || 'info';
+
+                            let sevColor = '#607d8b';
+                            let sevBg = 'rgba(96,125,139,0.1)';
+                            if (sev === 'high') { sevColor = '#f44336'; sevBg = 'rgba(244,67,54,0.1)'; }
+                            else if (sev === 'medium') { sevColor = '#ff9800'; sevBg = 'rgba(255,152,0,0.1)'; }
+                            else if (sev === 'low') { sevColor = '#2196f3'; sevBg = 'rgba(33,150,243,0.1)'; }
+
+                            return `<tr>
+                                <td style="white-space:nowrap">${ts}</td>
+                                <td><strong>${device}</strong></td>
+                                <td>${eventType}</td>
+                                <td>${details}</td>
+                                <td>${score}</td>
+                                <td><span style="background:${sevBg}; color:${sevColor}; padding:2px 8px; border-radius:12px; font-size:0.8rem; font-weight:600; text-transform:uppercase;">${sev}</span></td>
+                            </tr>`;
+                        }).join('');
+                    }
+                })
+                .catch(() => { });
+
+            // Fetch redirected devices for mitigation rules table
+            fetch('/api/honeypot/redirected_devices')
+                .then(r => r.json())
+                .then(data => {
+                    const rulesBody = document.getElementById('mitigation-rules-list');
+                    if (!rulesBody) return;
+                    const devices = data.devices || [];
+                    if (devices.length === 0) {
+                        rulesBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--text-secondary);">No active mitigation rules</td></tr>';
+                        return;
+                    }
+                    rulesBody.innerHTML = devices.map(d => {
+                        return `<tr>
+                            <td>${d.device_id || '--'}</td>
+                            <td>Redirect (${d.severity || 'medium'})</td>
+                            <td>${d.reason || '--'}</td>
+                            <td>${d.timestamp ? new Date(d.timestamp).toLocaleString() : '--'}</td>
+                        </tr>`;
+                    }).join('');
+                })
+                .catch(() => { });
+        }
+
+        function deployCowrie() {
+            const msgEl = document.getElementById('cowrie-message');
+            if (msgEl) {
+                msgEl.style.display = 'block';
+                msgEl.style.background = 'rgba(33,150,243,0.1)';
+                msgEl.style.color = '#64b5f6';
+                msgEl.textContent = '🚀 Deploying Cowrie container...';
+            }
+            fetch('/api/honeypot/deploy', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (msgEl) {
+                        if (data.status === 'success') {
+                            msgEl.style.background = 'rgba(76,175,80,0.1)';
+                            msgEl.style.color = '#81c784';
+                            msgEl.textContent = '✅ ' + (data.message || 'Cowrie deployed successfully');
+                        } else {
+                            msgEl.style.background = 'rgba(244,67,54,0.1)';
+                            msgEl.style.color = '#e57373';
+                            msgEl.textContent = '❌ ' + (data.message || 'Failed to deploy');
+                        }
+                    }
+                    updateHoneypotStatus();
+                })
+                .catch(err => {
+                    if (msgEl) {
+                        msgEl.style.background = 'rgba(244,67,54,0.1)';
+                        msgEl.style.color = '#e57373';
+                        msgEl.textContent = '❌ Network error: ' + err.message;
+                    }
+                });
+        }
+
+        function stopCowrie() {
+            const msgEl = document.getElementById('cowrie-message');
+            if (msgEl) {
+                msgEl.style.display = 'block';
+                msgEl.style.background = 'rgba(255,152,0,0.1)';
+                msgEl.style.color = '#ffb74d';
+                msgEl.textContent = '⏹ Stopping Cowrie container...';
+            }
+            fetch('/api/honeypot/stop', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (msgEl) {
+                        if (data.status === 'success') {
+                            msgEl.style.background = 'rgba(76,175,80,0.1)';
+                            msgEl.style.color = '#81c784';
+                            msgEl.textContent = '✅ ' + (data.message || 'Cowrie stopped');
+                        } else {
+                            msgEl.style.background = 'rgba(244,67,54,0.1)';
+                            msgEl.style.color = '#e57373';
+                            msgEl.textContent = '❌ ' + (data.message || 'Failed to stop');
+                        }
+                    }
+                    updateHoneypotStatus();
+                })
+                .catch(err => {
+                    if (msgEl) {
+                        msgEl.style.background = 'rgba(244,67,54,0.1)';
+                        msgEl.style.color = '#e57373';
+                        msgEl.textContent = '❌ Network error: ' + err.message;
+                    }
+                });
+        }
+
+        // Auto-refresh honeypot tab every 5s when active
+        let honeypotRefreshInterval = null;
+        function startHoneypotUpdates() {
+            if (honeypotRefreshInterval) return;
+            honeypotRefreshInterval = setInterval(() => {
+                if (document.getElementById('honeypot') &&
+                    document.getElementById('honeypot').classList.contains('active')) {
+                    updateHoneypotStatus();
+                }
+            }, 5000);
+        }
+
         // Auto-refresh pending devices when approval tab is active
         let approvalRefreshInterval = null;
         function startApprovalUpdates() {
@@ -3762,6 +3947,9 @@
             }
             // Start approval updates
             startApprovalUpdates();
+
+            // Start honeypot updates
+            startHoneypotUpdates();
 
             // Load approval data when tab is clicked
             document.querySelectorAll('.tab-button').forEach(btn => {
