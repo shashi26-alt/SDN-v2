@@ -3313,8 +3313,7 @@
                                     <td><span style="color: ${statusColor};">${(cert.status || 'unknown').toUpperCase()}</span></td>
                                     <td>${cert.valid_until || cert.expires || 'N/A'}</td>
                                     <td>
-                                        <button class="button button-danger" onclick="revokeCertificate('${cert.device_id}')" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Revoke</button>
-                                        <button class="button button-danger" onclick="removeDevice('${cert.device_id}')" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; background-color: #d32f2f; margin-left: 0.25rem;">Delete</button>
+                                        <button class="button button-danger" onclick="removeDevice('${cert.device_id}')" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; background-color: #d32f2f;">Delete</button>
                                     </td>
                                 </tr>
                             `;
